@@ -7,7 +7,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import ClipDetail from "./pages/ClipDetail";
 import UploadClip from "./pages/UploadClip";
+import Collections from "./pages/Collections";
 import NotFound from "./pages/NotFound";
+import AuthGuard from "./components/AuthGuard";
 
 const queryClient = new QueryClient();
 
@@ -17,12 +19,15 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/clips/:id" element={<ClipDetail />} />
-          <Route path="/upload" element={<UploadClip />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthGuard>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/clips/:id" element={<ClipDetail />} />
+            <Route path="/upload" element={<UploadClip />} />
+            <Route path="/collections" element={<Collections />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthGuard>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

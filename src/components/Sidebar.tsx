@@ -18,12 +18,14 @@ import {
   Gamepad2, 
   Bookmark, 
   Heart, 
-  Users, 
-  Settings 
+  Settings,
+  FolderPlus,
+  Upload,
+  LogOut
 } from "lucide-react";
 
-// Games mock data
-const games = [
+// Jogos favoritos do usuário
+const myGames = [
   { id: "1", name: "Fortnite" },
   { id: "2", name: "Valorant" },
   { id: "3", name: "League of Legends" },
@@ -32,11 +34,16 @@ const games = [
 ];
 
 const Sidebar = () => {
+  const handleLogout = () => {
+    localStorage.removeItem("isAuthenticated");
+    window.location.href = "/";
+  };
+
   return (
     <SidebarComponent>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupLabel>Meu Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -51,21 +58,29 @@ const Sidebar = () => {
                 <SidebarMenuButton asChild>
                   <Link to="/trending">
                     <Flame size={20} />
-                    <span>Tendências</span>
+                    <span>Recentes</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link to="/games">
-                    <Gamepad2 size={20} />
-                    <span>Jogos</span>
+                  <Link to="/upload">
+                    <Upload size={20} />
+                    <span>Upload</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link to="/saved">
+                  <Link to="/collections">
+                    <FolderPlus size={20} />
+                    <span>Coleções</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <Link to="/bookmarks">
                     <Bookmark size={20} />
                     <span>Salvos</span>
                   </Link>
@@ -76,10 +91,10 @@ const Sidebar = () => {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Seus Jogos</SidebarGroupLabel>
+          <SidebarGroupLabel>Meus Jogos</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {games.map((game) => (
+              {myGames.map((game) => (
                 <SidebarMenuItem key={game.id}>
                   <SidebarMenuButton asChild>
                     <Link to={`/games/${game.id}`}>
@@ -93,7 +108,7 @@ const Sidebar = () => {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Sua Conta</SidebarGroupLabel>
+          <SidebarGroupLabel>Minha Conta</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -106,18 +121,16 @@ const Sidebar = () => {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link to="/friends">
-                    <Users size={20} />
-                    <span>Amigos</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
                   <Link to="/settings">
                     <Settings size={20} />
                     <span>Configurações</span>
                   </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={handleLogout}>
+                  <LogOut size={20} />
+                  <span>Sair</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -127,7 +140,7 @@ const Sidebar = () => {
       
       <SidebarFooter className="px-3 py-2">
         <div className="text-xs text-muted-foreground">
-          © 2023 Clipster Portal
+          © 2023 Minha Plataforma de Clipes
         </div>
       </SidebarFooter>
     </SidebarComponent>

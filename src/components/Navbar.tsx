@@ -30,7 +30,7 @@ const Navbar = () => {
           
           <Link to="/" className="flex items-center gap-2">
             <span className="bg-primary text-primary-foreground w-8 h-8 rounded-md flex items-center justify-center font-bold">C</span>
-            <span className="font-bold text-lg hidden md:inline-block">Clipster</span>
+            <span className="font-bold text-lg hidden md:inline-block">Meus Clipes</span>
           </Link>
         </div>
 
@@ -39,7 +39,7 @@ const Navbar = () => {
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input 
-              placeholder="Pesquisar clipes..." 
+              placeholder="Pesquisar meus clipes..." 
               className="pl-10 bg-muted/50 border-muted" 
             />
           </div>
@@ -67,7 +67,7 @@ const Navbar = () => {
           </Button>
           <Avatar className="h-8 w-8">
             <AvatarImage src="" />
-            <AvatarFallback className="bg-primary text-xs">JD</AvatarFallback>
+            <AvatarFallback className="bg-primary text-xs">EU</AvatarFallback>
           </Avatar>
         </div>
       </div>
@@ -78,7 +78,7 @@ const Navbar = () => {
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input 
-              placeholder="Pesquisar clipes..." 
+              placeholder="Pesquisar meus clipes..." 
               className="pl-10 bg-muted/50 border-muted w-full" 
               autoFocus
               onBlur={() => setSearchOpen(false)}
