@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -45,7 +44,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-// Mock data
 const games = [
   { id: "valorant", name: "Valorant" },
   { id: "csgo", name: "CS:GO" },
@@ -59,7 +57,6 @@ const games = [
   { id: "gta5", name: "GTA V" },
 ];
 
-// Form validation schema
 const formSchema = z.object({
   title: z.string().min(5, {
     message: "O título deve ter pelo menos 5 caracteres.",
@@ -87,7 +84,6 @@ const UploadClip = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
-  // Form setup
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -103,7 +99,6 @@ const UploadClip = () => {
     if (files && files.length > 0) {
       const selectedFile = files[0];
       
-      // Check if it's a video file
       if (!selectedFile.type.startsWith("video/")) {
         toast({
           title: "Formato não suportado",
@@ -113,7 +108,6 @@ const UploadClip = () => {
         return;
       }
       
-      // Check file size (max 500MB)
       if (selectedFile.size > 500 * 1024 * 1024) {
         toast({
           title: "Arquivo muito grande",
@@ -125,7 +119,6 @@ const UploadClip = () => {
       
       setFile(selectedFile);
       
-      // Create a preview URL for the video
       const url = URL.createObjectURL(selectedFile);
       setPreview(url);
     }
@@ -136,7 +129,6 @@ const UploadClip = () => {
     if (files && files.length > 0) {
       const selectedFile = files[0];
       
-      // Check if it's an image file
       if (!selectedFile.type.startsWith("image/")) {
         toast({
           title: "Formato não suportado",
@@ -146,7 +138,6 @@ const UploadClip = () => {
         return;
       }
       
-      // Create a preview URL for the thumbnail
       const url = URL.createObjectURL(selectedFile);
       setThumbnail(url);
     }
@@ -195,18 +186,15 @@ const UploadClip = () => {
       return;
     }
     
-    // Prepare tags
     const tagString = tags.join(",");
     
-    // Combine form values with file and tags
     const uploadData = {
       ...values,
-      tags: tagString,
+      tags: tags,
       fileName: file.name,
       fileSize: file.size,
     };
     
-    // Simulate upload process
     setIsUploading(true);
     
     const simulateUpload = () => {
@@ -217,15 +205,14 @@ const UploadClip = () => {
           progress = 100;
           clearInterval(interval);
           
-          // Simulate upload completion
           setTimeout(() => {
+            saveClipToStorage(uploadData);
             setIsUploading(false);
             setUploadProgress(0);
             toast({
               title: "Upload concluído com sucesso!",
               description: "Seu clipe foi enviado e está sendo processado.",
             });
-            // Redirect to home page
             navigate("/");
           }, 500);
         }
@@ -234,6 +221,40 @@ const UploadClip = () => {
     };
     
     simulateUpload();
+  };
+
+  const saveClipToStorage = (uploadData: any) => {
+    try {
+      const clipId = `clip_${Date.now()}`;
+      
+      const newClip = {
+        id: clipId,
+        title: uploadData.title,
+        description: uploadData.description || "",
+        game: uploadData.game,
+        thumbnail: thumbnail || "/placeholder.svg",
+        views: 0,
+        date: new Date().toISOString(),
+        duration: "00:30",
+        tags: uploadData.tags,
+      };
+      
+      const existingClipsJSON = localStorage.getItem("uploadedClips");
+      let existingClips = existingClipsJSON ? JSON.parse(existingClipsJSON) : [];
+      
+      existingClips = [newClip, ...existingClips];
+      
+      localStorage.setItem("uploadedClips", JSON.stringify(existingClips));
+      
+      console.log("Clip saved to localStorage:", newClip);
+    } catch (error) {
+      console.error("Error saving clip to localStorage:", error);
+      toast({
+        title: "Erro ao salvar",
+        description: "Não foi possível salvar seu clipe. Por favor, tente novamente.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -245,7 +266,6 @@ const UploadClip = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Video Upload Section */}
           <Card className="md:col-span-1 h-fit">
             <CardHeader>
               <CardTitle>Vídeo</CardTitle>
@@ -343,7 +363,6 @@ const UploadClip = () => {
             </CardContent>
           </Card>
 
-          {/* Details Form Section */}
           <Card className="md:col-span-2">
             <CardHeader>
               <CardTitle>Detalhes do Clipe</CardTitle>

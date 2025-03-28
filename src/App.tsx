@@ -9,6 +9,10 @@ import ClipDetail from "./pages/ClipDetail";
 import UploadClip from "./pages/UploadClip";
 import Collections from "./pages/Collections";
 import NotFound from "./pages/NotFound";
+import Favorites from "./pages/Favorites";
+import Settings from "./pages/Settings";
+import Bookmarks from "./pages/Bookmarks";
+import Recentes from "./pages/Recentes";
 import AuthGuard from "./components/AuthGuard";
 
 const queryClient = new QueryClient();
@@ -25,6 +29,10 @@ const App = () => (
             <Route path="/clips/:id" element={<ClipDetail />} />
             <Route path="/upload" element={<UploadClip />} />
             <Route path="/collections" element={<Collections />} />
+            <Route path="/favoritos" element={<Favorites />} />
+            <Route path="/configuracoes" element={<Settings />} />
+            <Route path="/bookmarks" element={<Bookmarks />} />
+            <Route path="/recentes" element={<Recentes />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthGuard>

@@ -15,7 +15,6 @@ import {
 import { 
   Home, 
   Flame, 
-  Gamepad2, 
   Bookmark, 
   Heart, 
   Settings,
@@ -23,15 +22,6 @@ import {
   Upload,
   LogOut
 } from "lucide-react";
-
-// Jogos favoritos do usuário
-const myGames = [
-  { id: "1", name: "Fortnite" },
-  { id: "2", name: "Valorant" },
-  { id: "3", name: "League of Legends" },
-  { id: "4", name: "CS:GO" },
-  { id: "5", name: "Apex Legends" },
-];
 
 const Sidebar = () => {
   const handleLogout = () => {
@@ -56,7 +46,7 @@ const Sidebar = () => {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link to="/trending">
+                  <Link to="/recentes">
                     <Flame size={20} />
                     <span>Recentes</span>
                   </Link>
@@ -91,29 +81,12 @@ const Sidebar = () => {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Meus Jogos</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {myGames.map((game) => (
-                <SidebarMenuItem key={game.id}>
-                  <SidebarMenuButton asChild>
-                    <Link to={`/games/${game.id}`}>
-                      <span>{game.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
           <SidebarGroupLabel>Minha Conta</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link to="/favorites">
+                  <Link to="/favoritos">
                     <Heart size={20} />
                     <span>Favoritos</span>
                   </Link>
@@ -121,7 +94,7 @@ const Sidebar = () => {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link to="/settings">
+                  <Link to="/configuracoes">
                     <Settings size={20} />
                     <span>Configurações</span>
                   </Link>

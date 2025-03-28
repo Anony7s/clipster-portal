@@ -20,12 +20,11 @@ const Navbar = () => {
     <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-10">
       <div className="container flex items-center justify-between h-16 px-4">
         <div className="flex items-center gap-4 lg:gap-6">
-          <SidebarTrigger className="md:hidden">
-            {({ open }) => (
-              <Button variant="ghost" size="icon">
-                {open ? <X size={20} /> : <Menu size={20} />}
-              </Button>
-            )}
+          <SidebarTrigger>
+            <Button variant="ghost" size="icon">
+              <Menu size={20} className="sidebar-open-icon" />
+              <X size={20} className="sidebar-close-icon" />
+            </Button>
           </SidebarTrigger>
           
           <Link to="/" className="flex items-center gap-2">
