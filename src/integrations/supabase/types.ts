@@ -9,6 +9,35 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      bookmarks: {
+        Row: {
+          clip_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          clip_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          clip_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookmarks_clip_id_fkey"
+            columns: ["clip_id"]
+            isOneToOne: false
+            referencedRelation: "clips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clip_tags: {
         Row: {
           clip_id: string
@@ -145,6 +174,12 @@ export type Database = {
           p_type?: string
         }
         Returns: string
+      }
+      increment_view_count: {
+        Args: {
+          clip_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
