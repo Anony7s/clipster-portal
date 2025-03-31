@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -37,7 +38,8 @@ import {
   Play, 
   Video, 
   Image as ImageIcon, 
-  Loader2 
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import Layout from "@/components/Layout";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,6 +47,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from 'uuid';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const games = [
   { id: "valorant", name: "Valorant" },
@@ -74,6 +77,9 @@ const formSchema = z.object({
   tags: z.string().optional(),
 });
 
+// Maximum file size: 50MB (decreased from 500MB)
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
 const UploadClip = () => {
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
@@ -84,6 +90,7 @@ const UploadClip = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [tags, setTags] = useState<string[]>([]);
   const [currentTag, setCurrentTag] = useState("");
+  const [fileSizeError, setFileSizeError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,6 +106,8 @@ const UploadClip = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
+    setFileSizeError(null);
+    
     if (files && files.length > 0) {
       const selectedFile = files[0];
       
@@ -111,12 +120,9 @@ const UploadClip = () => {
         return;
       }
       
-      if (selectedFile.size > 500 * 1024 * 1024) {
-        toast({
-          title: "Arquivo muito grande",
-          description: "O tamanho máximo permitido é 500MB.",
-          variant: "destructive",
-        });
+      // Check file size - reduced to 50MB
+      if (selectedFile.size > MAX_FILE_SIZE) {
+        setFileSizeError(`O arquivo excede o tamanho máximo permitido de 50MB. Seu arquivo tem ${(selectedFile.size / (1024 * 1024)).toFixed(2)}MB.`);
         return;
       }
       
@@ -150,6 +156,7 @@ const UploadClip = () => {
   const handleRemoveFile = () => {
     setFile(null);
     setPreview(null);
+    setFileSizeError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -196,6 +203,20 @@ const UploadClip = () => {
     });
   };
 
+  const simulateProgressUpdate = () => {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.random() * 10;
+      if (progress > 100) {
+        progress = 100;
+        clearInterval(interval);
+      }
+      setUploadProgress(Math.floor(progress));
+    }, 300);
+    
+    return interval;
+  };
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!file) {
       toast({
@@ -206,8 +227,20 @@ const UploadClip = () => {
       return;
     }
     
+    if (fileSizeError) {
+      toast({
+        title: "Erro de tamanho de arquivo",
+        description: fileSizeError,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsUploading(true);
     setUploadProgress(0);
+    
+    // Start progress simulation
+    const progressInterval = simulateProgressUpdate();
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -219,10 +252,7 @@ const UploadClip = () => {
       const videoFileName = `${user.id}/${uuidv4()}-${file.name}`;
       let thumbnailFileName = null;
       
-      if (thumbnail) {
-        thumbnailFileName = `${user.id}/${uuidv4()}-${thumbnail.name}`;
-      }
-      
+      // Upload video file
       const videoUpload = await supabase.storage
         .from('clip_videos')
         .upload(videoFileName, file, {
@@ -230,14 +260,20 @@ const UploadClip = () => {
           upsert: false
         });
       
-      if (videoUpload.error) throw videoUpload.error;
+      if (videoUpload.error) {
+        console.error("Erro no upload do vídeo:", videoUpload.error);
+        throw new Error(`Erro ao fazer upload do vídeo: ${videoUpload.error.message}`);
+      }
       
       const { data: videoUrl } = supabase.storage
         .from('clip_videos')
         .getPublicUrl(videoFileName);
       
+      // Upload thumbnail if provided
       let thumbnailUrl = null;
-      if (thumbnail && thumbnailFileName) {
+      if (thumbnail && thumbnail.size < 5 * 1024 * 1024) { // 5MB max for thumbnails
+        thumbnailFileName = `${user.id}/${uuidv4()}-${thumbnail.name}`;
+        
         const thumbnailUpload = await supabase.storage
           .from('clip_thumbnails')
           .upload(thumbnailFileName, thumbnail, {
@@ -245,17 +281,22 @@ const UploadClip = () => {
             upsert: false
           });
         
-        if (thumbnailUpload.error) throw thumbnailUpload.error;
-        
-        const { data: thumbUrl } = supabase.storage
-          .from('clip_thumbnails')
-          .getPublicUrl(thumbnailFileName);
-        
-        thumbnailUrl = thumbUrl.publicUrl;
+        if (thumbnailUpload.error) {
+          console.error("Erro no upload da thumbnail:", thumbnailUpload.error);
+          // Continue even if thumbnail upload fails
+        } else {
+          const { data: thumbUrl } = supabase.storage
+            .from('clip_thumbnails')
+            .getPublicUrl(thumbnailFileName);
+          
+          thumbnailUrl = thumbUrl.publicUrl;
+        }
       }
       
+      // Get video duration
       const duration = await getVideoDuration(file);
       
+      // Insert clip data into database
       const { error: insertError } = await supabase
         .from('clips')
         .insert({
@@ -270,6 +311,7 @@ const UploadClip = () => {
       
       if (insertError) throw insertError;
       
+      // Fetch the created clip to get its ID
       const { data: clipData, error: fetchError } = await supabase
         .from('clips')
         .select('id')
@@ -281,6 +323,7 @@ const UploadClip = () => {
       
       if (fetchError) throw fetchError;
       
+      // Insert tags if any
       if (tags.length > 0 && clipData) {
         const tagInserts = tags.map(tag => ({
           clip_id: clipData.id,
@@ -291,17 +334,36 @@ const UploadClip = () => {
           .from('clip_tags')
           .insert(tagInserts);
         
-        if (tagError) throw tagError;
+        if (tagError) {
+          console.error("Erro ao adicionar tags:", tagError);
+          // Continue even if tag insertion fails
+        }
       }
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
       
       toast({
         title: "Upload concluído com sucesso!",
         description: "Seu clipe foi enviado e já está disponível.",
       });
       
-      navigate("/");
+      // Create a notification for the user
+      await supabase.rpc('create_notification', {
+        p_user_id: user.id,
+        p_message: `Seu clipe "${values.title}" foi carregado com sucesso!`,
+        p_type: 'success'
+      });
+      
+      // Navigate to home after successful upload
+      setTimeout(() => {
+        navigate("/");
+      }, 1500);
+      
     } catch (error: any) {
+      clearInterval(progressInterval);
       console.error("Erro ao fazer upload:", error);
+      
       toast({
         title: "Erro ao fazer upload",
         description: error.message || "Ocorreu um erro ao enviar seu clipe. Por favor, tente novamente.",
@@ -309,22 +371,7 @@ const UploadClip = () => {
       });
     } finally {
       setIsUploading(false);
-      setUploadProgress(0);
     }
-  };
-
-  const startProgressSimulation = () => {
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 10;
-      if (progress > 100) {
-        progress = 100;
-        clearInterval(interval);
-      }
-      setUploadProgress(Math.floor(progress));
-    }, 300);
-    
-    return interval;
   };
 
   return (
@@ -335,11 +382,19 @@ const UploadClip = () => {
           <p className="text-muted-foreground mt-1">Compartilhe seus melhores momentos com a comunidade</p>
         </div>
 
+        {fileSizeError && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Erro de tamanho de arquivo</AlertTitle>
+            <AlertDescription>{fileSizeError}</AlertDescription>
+          </Alert>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="md:col-span-1 h-fit">
             <CardHeader>
               <CardTitle>Vídeo</CardTitle>
-              <CardDescription>Faça upload do seu clipe</CardDescription>
+              <CardDescription>Faça upload do seu clipe (máx. 50MB)</CardDescription>
             </CardHeader>
             <CardContent>
               {!file ? (
@@ -349,7 +404,7 @@ const UploadClip = () => {
                 >
                   <UploadCloud className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                   <p className="text-muted-foreground mb-1">Arraste e solte seu vídeo aqui</p>
-                  <p className="text-xs text-muted-foreground mb-3">MP4, MOV, WEBM até 500MB</p>
+                  <p className="text-xs text-muted-foreground mb-3">MP4, MOV, WEBM até 50MB</p>
                   <Button size="sm" className="mt-2">
                     <Upload className="h-4 w-4 mr-2" />
                     Selecionar Arquivo
@@ -579,7 +634,10 @@ const UploadClip = () => {
                       >
                         Cancelar
                       </Button>
-                      <Button type="submit" disabled={!file}>
+                      <Button 
+                        type="submit" 
+                        disabled={!file || !!fileSizeError}
+                      >
                         <Video className="h-4 w-4 mr-2" />
                         Publicar Clipe
                       </Button>

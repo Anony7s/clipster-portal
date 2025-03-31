@@ -1,5 +1,6 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { FolderPlus, Plus, Folder } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Collection {
   id: string;
@@ -16,38 +18,83 @@ interface Collection {
   cover: string;
 }
 
-// Dados de exemplo
-const mockCollections: Collection[] = [
-  {
-    id: "1",
-    name: "Melhores Momentos",
-    description: "Meus clips favoritos de todos os jogos",
-    clipsCount: 12,
-    cover: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2426&auto=format&fit=crop"
-  },
-  {
-    id: "2",
-    name: "Valorant Aces",
-    description: "Rounds perfeitos no Valorant",
-    clipsCount: 5,
-    cover: "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?q=80&w=2670&auto=format&fit=crop"
-  },
-  {
-    id: "3",
-    name: "LoL Pentakills",
-    description: "Todas as pentakills que consegui",
-    clipsCount: 3,
-    cover: "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2670&auto=format&fit=crop"
-  }
+// Placeholder cover images for collections
+const coverImages = [
+  "https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2426&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?q=80&w=2670&auto=format&fit=crop",
+  "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2670&auto=format&fit=crop", 
+  "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=2670&auto=format&fit=crop"
 ];
 
 const Collections = () => {
-  const [collections, setCollections] = useState<Collection[]>(mockCollections);
+  const [collections, setCollections] = useState<Collection[]>([]);
   const [newCollection, setNewCollection] = useState({
     name: "",
     description: ""
   });
   
+  const { data: collectionsData, isLoading, error } = useQuery({
+    queryKey: ['collections'],
+    queryFn: async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      
+      if (!userData.user) {
+        throw new Error("Usuário não autenticado");
+      }
+      
+      // Note: in a real implementation, you would have a collections table
+      // This is a placeholder showing how to query and transform the data from Supabase
+      const { data: clipsData, error: clipsError } = await supabase
+        .from('clips')
+        .select('game')
+        .eq('user_id', userData.user.id);
+      
+      if (clipsError) throw clipsError;
+      
+      // Group clips by game to create "collections"
+      const gameGroups: Record<string, number> = {};
+      clipsData.forEach(clip => {
+        if (gameGroups[clip.game]) {
+          gameGroups[clip.game]++;
+        } else {
+          gameGroups[clip.game] = 1;
+        }
+      });
+      
+      // Transform game groups into collections
+      const collections: Collection[] = [];
+      let i = 0;
+      
+      for (const [game, count] of Object.entries(gameGroups)) {
+        collections.push({
+          id: (i + 1).toString(),
+          name: game,
+          description: `Seus clipes de ${game}`,
+          clipsCount: count,
+          cover: coverImages[i % coverImages.length]
+        });
+        i++;
+      }
+      
+      return collections;
+    },
+    meta: {
+      onError: (err: any) => {
+        toast({
+          title: "Erro ao carregar coleções",
+          description: err.message || "Não foi possível carregar suas coleções.",
+          variant: "destructive",
+        });
+      }
+    }
+  });
+  
+  useEffect(() => {
+    if (collectionsData) {
+      setCollections(collectionsData);
+    }
+  }, [collectionsData]);
+
   const handleAddCollection = () => {
     if (newCollection.name.trim() === "") {
       toast({
@@ -63,7 +110,7 @@ const Collections = () => {
       name: newCollection.name,
       description: newCollection.description,
       clipsCount: 0,
-      cover: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=2670&auto=format&fit=crop"
+      cover: coverImages[collections.length % coverImages.length]
     };
     
     setCollections([...collections, newCollectionData]);
@@ -132,7 +179,18 @@ const Collections = () => {
           </Dialog>
         </div>
 
-        {collections.length === 0 ? (
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="overflow-hidden">
+                <div className="aspect-video bg-muted animate-pulse" />
+                <CardHeader className="py-3">
+                  <div className="h-5 bg-muted animate-pulse rounded mb-2 w-3/4" />
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+        ) : collections.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-60 border border-dashed rounded-lg p-8">
             <FolderPlus className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium text-center">Nenhuma coleção ainda</h3>

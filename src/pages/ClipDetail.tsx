@@ -1,63 +1,48 @@
 
-import { useParams, Link } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { 
-  Heart, 
-  MessageSquare, 
-  Share2, 
-  Bookmark,
-  Flag,
-  MoreHorizontal 
-} from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "@/components/ui/use-toast";
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
-import CommentSection, { CommentData } from "@/components/CommentSection";
-import { useState } from "react";
+import CommentSection from "@/components/CommentSection";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { toast } from "@/components/ui/use-toast";
+import { Heart, Bookmark, Share, Calendar, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+// This is a temporary function for view counting
+// In a production environment, a proper database function would be used
+const incrementViewCount = async (clipId: string) => {
+  try {
+    const { error } = await supabase.rpc('increment_view_count', { clip_id: clipId });
+    if (error) throw error;
+  } catch (error) {
+    console.error("Error incrementing view count:", error);
+  }
+};
 
 const ClipDetail = () => {
   const { id } = useParams<{ id: string }>();
   const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  // Fetch clip details
+  const [bookmarked, setBookmarked] = useState(false);
+  
   const { data: clipData, isLoading, error } = useQuery({
-    queryKey: ['clip', id],
+    queryKey: ['clipDetail', id],
     queryFn: async () => {
-      if (!id) throw new Error("Clip ID não especificado");
+      if (!id) throw new Error("ID do clipe não encontrado");
       
-      // Get clip data
-      const { data: clip, error: clipError } = await supabase
-        .from('clips')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      if (clipError) throw clipError;
-      
-      // Get tags
-      const { data: tagData, error: tagError } = await supabase
-        .from('clip_tags')
-        .select('tag')
-        .eq('clip_id', id);
-      
-      if (tagError) throw tagError;
-      
-      // Fetch user data
+      // Check if user has liked this clip
       const { data: userData } = await supabase.auth.getUser();
       
-      // Check if user has favorited this clip
       if (userData.user) {
         const { data: favData } = await supabase
           .from('favorites')
@@ -65,22 +50,45 @@ const ClipDetail = () => {
           .eq('user_id', userData.user.id)
           .eq('clip_id', id)
           .maybeSingle();
+          
+        const { data: bookmarkData } = await supabase
+          .from('bookmarks')
+          .select('id')
+          .eq('user_id', userData.user.id)
+          .eq('clip_id', id)
+          .maybeSingle();
         
         setLiked(!!favData);
+        setBookmarked(!!bookmarkData);
       }
       
-      // Increment view count - Fixed the RPC function name
-      await supabase.rpc('increment_view_count', { clip_id: id });
+      // Increment view count
+      await incrementViewCount(id);
+      
+      // Get clip details
+      const { data: clipDetails, error: clipError } = await supabase
+        .from('clips')
+        .select(`
+          *,
+          clip_tags(tag)
+        `)
+        .eq('id', id)
+        .single();
+      
+      if (clipError) throw clipError;
+      
+      // Get user details (mock for now)
+      const userData2 = {
+        id: "user123",
+        username: "GamerPro99",
+        avatar: "/placeholder.svg",
+        followers: 245
+      };
       
       return {
-        ...clip,
-        tags: tagData.map(t => t.tag),
-        user: {
-          id: clip.user_id,
-          username: "Usuário", // In a real app, you would fetch this from a profiles table
-          avatar: "",
-          followers: 0
-        }
+        ...clipDetails,
+        tags: clipDetails.clip_tags ? clipDetails.clip_tags.map((t: any) => t.tag) : [],
+        user: userData2
       };
     },
     meta: {
@@ -94,48 +102,21 @@ const ClipDetail = () => {
     }
   });
 
-  // Fetch related clips
-  const { data: relatedClips } = useQuery({
-    queryKey: ['relatedClips', id],
-    queryFn: async () => {
-      if (!id || !clipData) return [];
-      
-      const { data: related, error: relatedError } = await supabase
-        .from('clips')
-        .select('*')
-        .eq('game', clipData.game)
-        .neq('id', id)
-        .limit(3);
-      
-      if (relatedError) throw relatedError;
-      
-      return related.map(clip => ({
-        id: clip.id,
-        title: clip.title,
-        thumbnail: clip.thumbnail_url || "/placeholder.svg",
-        views: clip.views,
-        likes: 0,
-        comments: 0,
-        duration: clip.duration,
-        createdAt: clip.created_at,
-        game: clip.game,
-        user: {
-          username: "Usuário",
-          avatar: ""
-        }
-      }));
-    },
-    enabled: !!clipData,
-  });
-
-  // Toggle favorite status
-  const favoriteMutation = useMutation({
-    mutationFn: async () => {
+  const handleLike = async () => {
+    try {
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error("Usuário não autenticado");
+      
+      if (!userData.user) {
+        toast({
+          title: "Autenticação necessária",
+          description: "Você precisa estar logado para curtir clipes.",
+          variant: "destructive",
+        });
+        return;
+      }
       
       if (liked) {
-        // Remove from favorites
+        // Unlike
         const { error } = await supabase
           .from('favorites')
           .delete()
@@ -143,8 +124,14 @@ const ClipDetail = () => {
           .eq('clip_id', id);
         
         if (error) throw error;
+        
+        setLiked(false);
+        toast({
+          title: "Removido dos favoritos",
+          description: "Clipe removido dos seus favoritos com sucesso.",
+        });
       } else {
-        // Add to favorites
+        // Like
         const { error } = await supabase
           .from('favorites')
           .insert({
@@ -153,51 +140,117 @@ const ClipDetail = () => {
           });
         
         if (error) throw error;
+        
+        setLiked(true);
+        toast({
+          title: "Adicionado aos favoritos",
+          description: "Clipe adicionado aos seus favoritos com sucesso.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Erro ao favoritar clipe:", error);
+      toast({
+        title: "Erro ao favoritar",
+        description: error.message || "Não foi possível adicionar aos favoritos.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBookmark = async () => {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      
+      if (!userData.user) {
+        toast({
+          title: "Autenticação necessária",
+          description: "Você precisa estar logado para salvar clipes.",
+          variant: "destructive",
+        });
+        return;
       }
       
-      return !liked;
-    },
-    onSuccess: (newState) => {
-      setLiked(newState);
+      if (bookmarked) {
+        // Remove bookmark
+        const { error } = await supabase
+          .from('bookmarks')
+          .delete()
+          .eq('user_id', userData.user.id)
+          .eq('clip_id', id);
+        
+        if (error) throw error;
+        
+        setBookmarked(false);
+        toast({
+          title: "Removido dos salvos",
+          description: "Clipe removido dos seus salvos com sucesso.",
+        });
+      } else {
+        // Add bookmark
+        const { error } = await supabase
+          .from('bookmarks')
+          .insert({
+            user_id: userData.user.id,
+            clip_id: id
+          });
+        
+        if (error) throw error;
+        
+        setBookmarked(true);
+        toast({
+          title: "Adicionado aos salvos",
+          description: "Clipe adicionado aos seus salvos com sucesso.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Erro ao salvar clipe:", error);
       toast({
-        title: newState ? "Adicionado aos favoritos" : "Removido dos favoritos",
-        description: newState ? "Clip adicionado aos seus favoritos" : "Clip removido dos seus favoritos"
-      });
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Erro",
-        description: err.message || "Ocorreu um erro ao atualizar os favoritos.",
-        variant: "destructive"
+        title: "Erro ao salvar",
+        description: error.message || "Não foi possível salvar o clipe.",
+        variant: "destructive",
       });
     }
-  });
+  };
 
-  // Format view count
-  const formatViews = (views: number) => {
-    if (views >= 1000000) {
-      return `${(views / 1000000).toFixed(1)}M`;
-    } else if (views >= 1000) {
-      return `${(views / 1000).toFixed(1)}K`;
-    }
-    return views.toString();
+  const handleShare = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(
+      () => {
+        toast({
+          title: "Link copiado",
+          description: "O link do clipe foi copiado para a área de transferência.",
+        });
+      },
+      () => {
+        toast({
+          title: "Erro ao copiar link",
+          description: "Não foi possível copiar o link para a área de transferência.",
+          variant: "destructive",
+        });
+      }
+    );
   };
 
   if (isLoading) {
     return (
       <Layout>
-        <div className="flex justify-center items-center h-96">
-          <p>Carregando...</p>
+        <div className="container">
+          <div className="aspect-video bg-muted animate-pulse rounded-lg mb-8" />
+          <div className="mb-4 h-8 w-3/4 bg-muted animate-pulse rounded" />
+          <div className="mb-8 h-4 w-1/2 bg-muted animate-pulse rounded" />
         </div>
       </Layout>
     );
   }
 
-  if (error || !clipData) {
+  if (!clipData) {
     return (
       <Layout>
-        <div className="flex justify-center items-center h-96">
-          <p>Erro ao carregar o clipe. Por favor, tente novamente.</p>
+        <div className="container text-center py-16">
+          <h1 className="text-2xl font-bold mb-4">Clipe não encontrado</h1>
+          <p className="text-muted-foreground">
+            O clipe que você está procurando não existe ou foi removido.
+          </p>
         </div>
       </Layout>
     );
@@ -205,124 +258,131 @@ const ClipDetail = () => {
 
   return (
     <Layout>
-      <div className="flex flex-col space-y-6 lg:flex-row lg:space-y-0 lg:space-x-6">
-        <div className="flex-1 space-y-6">
+      <div className="container grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-6">
           {/* Video Player */}
-          <VideoPlayer src={clipData.video_url} poster={clipData.thumbnail_url || "/placeholder.svg"} />
-
-          {/* Clip Info */}
-          <div className="space-y-4">
-            <h1 className="text-2xl font-bold">{clipData.title}</h1>
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>{formatViews(clipData.views)} visualizações</span>
-                <span>•</span>
-                <span>{new Date(clipData.created_at).toLocaleDateString()}</span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className={`flex items-center gap-1 ${liked ? 'text-red-500' : ''}`}
-                  onClick={() => favoriteMutation.mutate()}
-                  disabled={favoriteMutation.isPending}
-                >
-                  <Heart className={`h-5 w-5 ${liked ? 'fill-current' : ''}`} />
-                  <span>Favoritar</span>
-                </Button>
-                
-                <Button variant="ghost" size="sm" className="flex items-center gap-1">
-                  <MessageSquare className="h-5 w-5" />
-                  <span>Comentar</span>
-                </Button>
-                
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className={`flex items-center gap-1 ${saved ? 'text-primary' : ''}`}
-                  onClick={() => setSaved(!saved)}
-                >
-                  <Bookmark className={`h-5 w-5 ${saved ? 'fill-current' : ''}`} />
-                  <span>Salvar</span>
-                </Button>
-                
-                <Button variant="ghost" size="sm" className="flex items-center gap-1">
-                  <Share2 className="h-5 w-5" />
-                  <span>Compartilhar</span>
-                </Button>
-                
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <MoreHorizontal className="h-5 w-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>Baixar</DropdownMenuItem>
-                    <DropdownMenuItem>Copiar link</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">
-                      <Flag className="h-4 w-4 mr-2" />
-                      <span>Reportar</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-            <Separator />
-            
-            {/* Description */}
-            <div className="bg-card rounded-lg p-4">
-              <p className="whitespace-pre-line text-sm">{clipData.description}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
-                  {clipData.game}
-                </Badge>
-                {clipData.tags && clipData.tags.map(tag => (
-                  <Badge key={tag} variant="outline" className="cursor-pointer hover:bg-secondary/30">
-                    #{tag}
-                  </Badge>
-                ))}
-              </div>
-            </div>
+          <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+            <VideoPlayer src={clipData.video_url} poster={clipData.thumbnail_url} />
           </div>
-        </div>
-        
-        {/* Sidebar */}
-        <div className="lg:w-80 space-y-6">
+
+          {/* Clip Title and Action Buttons */}
           <div>
-            <h3 className="font-semibold text-lg mb-4">Clips relacionados</h3>
-            <div className="space-y-4">
-              {relatedClips && relatedClips.map(clip => (
-                <div key={clip.id} className="clip-card">
-                  <Link to={`/clips/${clip.id}`} className="block group">
-                    <div className="relative aspect-video overflow-hidden rounded-t-lg">
-                      <img 
-                        src={clip.thumbnail} 
-                        alt={clip.title} 
-                        className="w-full h-full object-cover transform transition-transform duration-300 group-hover:scale-105"
-                      />
-                      <div className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-1 rounded">
-                        {clip.duration}
-                      </div>
-                    </div>
-                    <div className="p-3">
-                      <h4 className="font-medium line-clamp-2 text-sm">{clip.title}</h4>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {formatViews(clip.views)} visualizações • {new Date(clip.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-              ))}
-              
-              {(!relatedClips || relatedClips.length === 0) && (
-                <p className="text-sm text-muted-foreground">Nenhum clipe relacionado encontrado.</p>
-              )}
+            <h1 className="text-2xl font-bold mb-2">{clipData.title}</h1>
+            <div className="flex flex-wrap gap-2 items-center justify-between">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="flex items-center">
+                  <Eye className="h-4 w-4 mr-1" />
+                  {clipData.views} visualizações
+                </span>
+                <span className="flex items-center">
+                  <Calendar className="h-4 w-4 mr-1" />
+                  {new Date(clipData.created_at).toLocaleDateString()}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant={liked ? "default" : "outline"} 
+                  size="sm"
+                  onClick={handleLike}
+                >
+                  <Heart className={`h-4 w-4 mr-2 ${liked ? "fill-current" : ""}`} />
+                  {liked ? "Curtido" : "Curtir"}
+                </Button>
+                <Button 
+                  variant={bookmarked ? "secondary" : "outline"} 
+                  size="sm"
+                  onClick={handleBookmark}
+                >
+                  <Bookmark className={`h-4 w-4 mr-2 ${bookmarked ? "fill-current" : ""}`} />
+                  {bookmarked ? "Salvo" : "Salvar"}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleShare}
+                >
+                  <Share className="h-4 w-4 mr-2" />
+                  Compartilhar
+                </Button>
+              </div>
             </div>
           </div>
+
+          {/* Tags */}
+          {clipData.tags && clipData.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {clipData.tags.map((tag: string) => (
+                <Badge key={tag} variant="secondary">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {/* Description */}
+          {clipData.description && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Descrição</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">{clipData.description}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Comments Section */}
+          <CommentSection clipId={id!} />
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Uploader Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Sobre o Criador</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3">
+                <Avatar>
+                  <AvatarImage src={clipData.user.avatar} alt={clipData.user.username} />
+                  <AvatarFallback>{clipData.user.username.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="font-semibold">{clipData.user.username}</h3>
+                  <p className="text-xs text-muted-foreground">{clipData.user.followers} seguidores</p>
+                </div>
+              </div>
+              <Button className="w-full" variant="secondary">
+                Seguir
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Game Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Sobre o Jogo</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-muted rounded-md flex items-center justify-center">
+                  {clipData.game.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="font-semibold">{clipData.game}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {clipData.tags && clipData.tags.length > 0 ? `${clipData.tags.length} tags relacionadas` : "Sem tags relacionadas"}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button variant="outline" className="w-full" size="sm">
+                Ver mais clips de {clipData.game}
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       </div>
     </Layout>
