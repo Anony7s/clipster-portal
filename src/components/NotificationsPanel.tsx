@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Sheet, 
@@ -27,7 +27,7 @@ export const NotificationsPanel = () => {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch notifications
+  // Fetch notifications - sem refetch automático
   const { data: notifications, isLoading } = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => {
@@ -46,7 +46,7 @@ export const NotificationsPanel = () => {
       if (error) throw error;
       return data as Notification[];
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    // Removido refetchInterval para evitar notificações constantes
   });
 
   // Mark notification as read

@@ -43,6 +43,11 @@ const Index = () => {
       
       if (clipsError) throw clipsError;
       
+      if (!userClips || userClips.length === 0) {
+        // Retorna array vazio se não houver clips
+        return [];
+      }
+      
       // Fetch tags for each clip
       const clipsWithTags = await Promise.all(
         userClips.map(async (clip) => {
@@ -55,7 +60,9 @@ const Index = () => {
           
           return {
             ...clip,
-            tags: tagData.map(t => t.tag)
+            tags: tagData ? tagData.map(t => t.tag) : [],
+            // Garantir que a thumbnail_url seja válida
+            thumbnail_url: clip.thumbnail_url || "/placeholder.svg"
           };
         })
       );
@@ -127,6 +134,10 @@ const Index = () => {
                         src={clip.thumbnail_url || "/placeholder.svg"} 
                         alt={clip.title} 
                         className="object-cover w-full h-full" 
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = "/placeholder.svg";
+                        }}
                       />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <Button variant="secondary" size="sm">
@@ -135,7 +146,7 @@ const Index = () => {
                         </Button>
                       </div>
                       <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
-                        {clip.duration}
+                        {clip.duration || "00:00"}
                       </div>
                     </div>
                   </Link>
@@ -161,7 +172,7 @@ const Index = () => {
                   )}
                   <CardFooter className="py-2 text-xs text-muted-foreground">
                     <div className="flex justify-between w-full">
-                      <span>{clip.views} visualizações</span>
+                      <span>{clip.views || 0} visualizações</span>
                       <span className="flex items-center">
                         <Calendar className="h-3 w-3 mr-1" />
                         {new Date(clip.created_at).toLocaleDateString()}

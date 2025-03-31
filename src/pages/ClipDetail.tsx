@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
@@ -52,15 +52,19 @@ const ClipDetail = () => {
           .eq('clip_id', id)
           .maybeSingle();
           
-        const { data: bookmarkData } = await supabase
-          .from('bookmarks')
-          .select('id')
-          .eq('user_id', userData.user.id)
-          .eq('clip_id', id)
-          .maybeSingle();
+        if (userData.user && id) {
+          // Verificar se o usuário tem este clip nos bookmarks
+          const { data: bookmarkData } = await supabase
+            .from('bookmarks')
+            .select('id')
+            .eq('user_id', userData.user.id)
+            .eq('clip_id', id)
+            .maybeSingle();
+            
+          setBookmarked(!!bookmarkData);
+        }
         
         setLiked(!!favData);
-        setBookmarked(!!bookmarkData);
       }
       
       // Increment view count
@@ -309,7 +313,7 @@ const ClipDetail = () => {
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span className="flex items-center">
                   <Eye className="h-4 w-4 mr-1" />
-                  {clipData.views} visualizações
+                  {clipData.views || 0} visualizações
                 </span>
                 <span className="flex items-center">
                   <Calendar className="h-4 w-4 mr-1" />
