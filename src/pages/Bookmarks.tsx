@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
@@ -52,7 +52,7 @@ const Bookmarks = () => {
         .select(`
           id,
           clip_id,
-          clips (
+          clip:clips (
             id,
             title,
             game,
@@ -69,7 +69,7 @@ const Bookmarks = () => {
       // Transform the data to match our interface
       let result = data.map(item => ({
         id: item.id,
-        clip: item.clips
+        clip: item.clip
       }));
       
       // Apply sorting based on filter

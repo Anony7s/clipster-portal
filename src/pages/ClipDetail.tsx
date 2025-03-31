@@ -34,6 +34,7 @@ const ClipDetail = () => {
   const { id } = useParams<{ id: string }>();
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [comments, setComments] = useState<any[]>([]);
   
   const { data: clipData, isLoading, error } = useQuery({
     queryKey: ['clipDetail', id],
@@ -84,6 +85,42 @@ const ClipDetail = () => {
         avatar: "/placeholder.svg",
         followers: 245
       };
+      
+      // Load mock comments for now
+      setComments([
+        {
+          id: "1",
+          user: {
+            username: "GamerFan54",
+            avatar: "/placeholder.svg"
+          },
+          content: "Este clipe é incrível! Como você conseguiu fazer isso?",
+          likes: 12,
+          createdAt: "2 dias atrás"
+        },
+        {
+          id: "2",
+          user: {
+            username: "ProGamer22",
+            avatar: "/placeholder.svg"
+          },
+          content: "Muito bom! Que jogada impressionante.",
+          likes: 5,
+          createdAt: "1 dia atrás",
+          replies: [
+            {
+              id: "2-1",
+              user: {
+                username: "GameMaster",
+                avatar: "/placeholder.svg"
+              },
+              content: "Concordo totalmente, nunca vi nada parecido!",
+              likes: 3,
+              createdAt: "20 horas atrás"
+            }
+          ]
+        }
+      ]);
       
       return {
         ...clipDetails,
@@ -332,7 +369,7 @@ const ClipDetail = () => {
           )}
 
           {/* Comments Section */}
-          <CommentSection clipId={id!} />
+          <CommentSection clipId={id!} comments={comments} />
         </div>
 
         {/* Sidebar */}

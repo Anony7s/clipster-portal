@@ -24,8 +24,8 @@ export interface CommentData {
 }
 
 interface CommentSectionProps {
-  comments: CommentData[];
   clipId: string;
+  comments: CommentData[];
 }
 
 const Comment = ({ comment }: { comment: CommentData }) => {
