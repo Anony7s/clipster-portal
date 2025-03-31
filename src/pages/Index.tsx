@@ -1,88 +1,76 @@
 
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import { ArrowRight, Upload, Play, Calendar } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-// Interface para o tipo de clipe
+// Interface for clip data
 interface Clip {
   id: string;
   title: string;
   description?: string;
   game: string;
-  thumbnail: string;
+  thumbnail_url: string;
+  video_url: string;
   views: number;
-  date: string;
+  created_at: string;
   duration: string;
   tags?: string[];
 }
 
 const Index = () => {
-  const [recentClips, setRecentClips] = useState<Clip[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulando o carregamento de clipes do localStorage ou de uma API
-    const loadClips = () => {
-      setIsLoading(true);
+  const { data: clips, isLoading, error } = useQuery({
+    queryKey: ['recentClips'],
+    queryFn: async () => {
+      const { data: userData } = await supabase.auth.getUser();
       
-      try {
-        // Verificar se há clipes salvos no localStorage
-        const savedClips = localStorage.getItem("uploadedClips");
-        let clips: Clip[] = [];
-        
-        if (savedClips) {
-          clips = JSON.parse(savedClips);
-          
-          // Ordenar por data (mais recentes primeiro)
-          clips.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        }
-        
-        setRecentClips(clips);
-        
-        if (clips.length === 0) {
-          // Adicionar alguns clipes de exemplo se não houver clipes salvos
-          setRecentClips([
-            {
-              id: "demo1",
-              title: "Vitória incrível no Battle Royale",
-              game: "Fortnite",
-              thumbnail: "/placeholder.svg",
-              views: 42,
-              date: "2023-12-01",
-              duration: "01:24",
-              tags: ["vitória", "battle-royale", "squad"]
-            },
-            {
-              id: "demo2",
-              title: "Clutch de última hora",
-              game: "Valorant",
-              thumbnail: "/placeholder.svg",
-              views: 36,
-              date: "2023-11-28",
-              duration: "00:45",
-              tags: ["clutch", "ace", "spike"]
-            }
-          ]);
-        }
-      } catch (error) {
-        console.error("Erro ao carregar clipes:", error);
-        toast({
-          title: "Erro ao carregar clipes",
-          description: "Não foi possível carregar seus clipes. Por favor, tente novamente.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
+      if (!userData.user) {
+        throw new Error("Usuário não autenticado");
       }
-    };
-    
-    loadClips();
-  }, []);
+      
+      // Fetch user clips
+      const { data: userClips, error: clipsError } = await supabase
+        .from('clips')
+        .select('*')
+        .eq('user_id', userData.user.id)
+        .order('created_at', { ascending: false });
+      
+      if (clipsError) throw clipsError;
+      
+      // Fetch tags for each clip
+      const clipsWithTags = await Promise.all(
+        userClips.map(async (clip) => {
+          const { data: tagData, error: tagError } = await supabase
+            .from('clip_tags')
+            .select('tag')
+            .eq('clip_id', clip.id);
+          
+          if (tagError) throw tagError;
+          
+          return {
+            ...clip,
+            tags: tagData.map(t => t.tag)
+          };
+        })
+      );
+      
+      return clipsWithTags as Clip[];
+    },
+    retry: 1,
+    onError: (err: any) => {
+      toast({
+        title: "Erro ao carregar clipes",
+        description: err.message || "Não foi possível carregar seus clipes.",
+        variant: "destructive",
+      });
+    }
+  });
 
   return (
     <Layout>
@@ -108,7 +96,7 @@ const Index = () => {
         {/* Recent clips section */}
         <section className="mb-12">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">Clipes Recentes</h2>
+            <h2 className="text-2xl font-bold">Seus Clipes</h2>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/recentes">
                 Ver todos <ArrowRight className="ml-2 h-4 w-4" />
@@ -128,14 +116,14 @@ const Index = () => {
                 </Card>
               ))}
             </div>
-          ) : recentClips.length > 0 ? (
+          ) : clips && clips.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {recentClips.map((clip) => (
+              {clips.map((clip) => (
                 <Card key={clip.id} className="overflow-hidden group">
                   <Link to={`/clips/${clip.id}`}>
                     <div className="relative aspect-video">
                       <img 
-                        src={clip.thumbnail} 
+                        src={clip.thumbnail_url || "/placeholder.svg"} 
                         alt={clip.title} 
                         className="object-cover w-full h-full" 
                       />
@@ -175,7 +163,7 @@ const Index = () => {
                       <span>{clip.views} visualizações</span>
                       <span className="flex items-center">
                         <Calendar className="h-3 w-3 mr-1" />
-                        {new Date(clip.date).toLocaleDateString()}
+                        {new Date(clip.created_at).toLocaleDateString()}
                       </span>
                     </div>
                   </CardFooter>

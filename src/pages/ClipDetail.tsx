@@ -1,5 +1,6 @@
 
 import { useParams, Link } from "react-router-dom";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { 
@@ -18,136 +19,158 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/components/ui/use-toast";
 import Layout from "@/components/Layout";
 import VideoPlayer from "@/components/VideoPlayer";
 import CommentSection, { CommentData } from "@/components/CommentSection";
-import ClipCard, { ClipData } from "@/components/ClipCard";
 import { useState } from "react";
-
-// Mock single clip data
-const clipData = {
-  id: "1",
-  title: "Ace incrível no Valorant com a Jett",
-  description: "Consegui esse Ace incrível jogando com a Jett em uma partida ranqueada. Usei a ultimate no momento perfeito para eliminar toda a equipe adversária!",
-  videoUrl: "https://samplelib.com/lib/preview/mp4/sample-5s.mp4", // Sample video
-  thumbnail: "https://placehold.co/600x400/1e1a2b/8b5cf6?text=Valorant+Ace",
-  views: 12500,
-  likes: 853,
-  comments: 42,
-  saves: 126,
-  shares: 37,
-  duration: "1:24",
-  createdAt: "2 dias atrás",
-  game: "Valorant",
-  tags: ["ace", "valorant", "jett", "fps"],
-  user: {
-    id: "u1",
-    username: "ProPlayer123",
-    avatar: "",
-    followers: 2540,
-  },
-};
-
-// Mock comments
-const commentsData: CommentData[] = [
-  {
-    id: "c1",
-    user: {
-      username: "GamerFan",
-      avatar: "",
-    },
-    content: "Essa jogada foi simplesmente incrível! Como você fez aquela última eliminação?",
-    likes: 24,
-    createdAt: "1 dia atrás",
-    replies: [
-      {
-        id: "r1",
-        user: {
-          username: "ProPlayer123",
-          avatar: "",
-        },
-        content: "Obrigado! Foi uma combinação de sorte e reflexos rápidos haha",
-        likes: 8,
-        createdAt: "1 dia atrás",
-      }
-    ]
-  },
-  {
-    id: "c2",
-    user: {
-      username: "FPSExpert",
-      avatar: "",
-    },
-    content: "Sua mira está excelente nesse clip. Quais configurações você usa?",
-    likes: 16,
-    createdAt: "2 dias atrás",
-  },
-  {
-    id: "c3",
-    user: {
-      username: "JettMain",
-      avatar: "",
-    },
-    content: "Vou tentar reproduzir essa jogada nas minhas partidas! Qual é a sua sensibilidade do mouse?",
-    likes: 7,
-    createdAt: "2 dias atrás",
-  },
-];
-
-// Mock related clips
-const relatedClips: ClipData[] = [
-  {
-    id: "2",
-    title: "Triple kill no último round para vencer a partida",
-    thumbnail: "https://placehold.co/600x400/1e1a2b/8b5cf6?text=CS:GO+Clutch",
-    views: 8300,
-    likes: 502,
-    comments: 23,
-    duration: "0:58",
-    createdAt: "1 semana atrás",
-    game: "CS:GO",
-    user: {
-      username: "GamerPro",
-      avatar: "",
-    },
-  },
-  {
-    id: "3",
-    title: "Jogada incrível com Yasuo - Pentakill",
-    thumbnail: "https://placehold.co/600x400/1e1a2b/8b5cf6?text=LoL+Pentakill",
-    views: 32100,
-    likes: 1245,
-    comments: 87,
-    duration: "1:12",
-    createdAt: "3 dias atrás",
-    game: "League of Legends",
-    user: {
-      username: "MidLaner",
-      avatar: "",
-    },
-  },
-  {
-    id: "4",
-    title: "Victory Royale com sniper no último círculo",
-    thumbnail: "https://placehold.co/600x400/1e1a2b/8b5cf6?text=Fortnite+Victory",
-    views: 15700,
-    likes: 892,
-    comments: 56,
-    duration: "2:10",
-    createdAt: "5 dias atrás",
-    game: "Fortnite",
-    user: {
-      username: "FortniteKing",
-      avatar: "",
-    },
-  },
-];
+import { supabase } from "@/integrations/supabase/client";
 
 const ClipDetail = () => {
   const { id } = useParams<{ id: string }>();
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [following, setFollowing] = useState(false);
+
+  // Fetch clip details
+  const { data: clipData, isLoading, error } = useQuery({
+    queryKey: ['clip', id],
+    queryFn: async () => {
+      if (!id) throw new Error("Clip ID não especificado");
+      
+      // Get clip data
+      const { data: clip, error: clipError } = await supabase
+        .from('clips')
+        .select('*')
+        .eq('id', id)
+        .single();
+      
+      if (clipError) throw clipError;
+      
+      // Get tags
+      const { data: tagData, error: tagError } = await supabase
+        .from('clip_tags')
+        .select('tag')
+        .eq('clip_id', id);
+      
+      if (tagError) throw tagError;
+      
+      // Fetch user data
+      const { data: userData } = await supabase.auth.getUser();
+      
+      // Check if user has favorited this clip
+      if (userData.user) {
+        const { data: favData } = await supabase
+          .from('favorites')
+          .select('id')
+          .eq('user_id', userData.user.id)
+          .eq('clip_id', id)
+          .maybeSingle();
+        
+        setLiked(!!favData);
+      }
+      
+      // Increment view count
+      await supabase.rpc('increment_view_count', { clip_id: id });
+      
+      return {
+        ...clip,
+        tags: tagData.map(t => t.tag),
+        user: {
+          id: clip.user_id,
+          username: "Usuário", // In a real app, you would fetch this from a profiles table
+          avatar: "",
+          followers: 0
+        }
+      };
+    },
+    retry: 1,
+    onError: (err: any) => {
+      toast({
+        title: "Erro ao carregar clipe",
+        description: err.message || "Não foi possível carregar os detalhes do clipe.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Fetch related clips
+  const { data: relatedClips } = useQuery({
+    queryKey: ['relatedClips', id],
+    queryFn: async () => {
+      if (!id || !clipData) return [];
+      
+      const { data: related, error: relatedError } = await supabase
+        .from('clips')
+        .select('*')
+        .eq('game', clipData.game)
+        .neq('id', id)
+        .limit(3);
+      
+      if (relatedError) throw relatedError;
+      
+      return related.map(clip => ({
+        id: clip.id,
+        title: clip.title,
+        thumbnail: clip.thumbnail_url || "/placeholder.svg",
+        views: clip.views,
+        likes: 0,
+        comments: 0,
+        duration: clip.duration,
+        createdAt: clip.created_at,
+        game: clip.game,
+        user: {
+          username: "Usuário",
+          avatar: ""
+        }
+      }));
+    },
+    enabled: !!clipData,
+  });
+
+  // Toggle favorite status
+  const favoriteMutation = useMutation({
+    mutationFn: async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error("Usuário não autenticado");
+      
+      if (liked) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', userData.user.id)
+          .eq('clip_id', id);
+        
+        if (error) throw error;
+      } else {
+        // Add to favorites
+        const { error } = await supabase
+          .from('favorites')
+          .insert({
+            user_id: userData.user.id,
+            clip_id: id
+          });
+        
+        if (error) throw error;
+      }
+      
+      return !liked;
+    },
+    onSuccess: (newState) => {
+      setLiked(newState);
+      toast({
+        title: newState ? "Adicionado aos favoritos" : "Removido dos favoritos",
+        description: newState ? "Clip adicionado aos seus favoritos" : "Clip removido dos seus favoritos"
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Erro",
+        description: err.message || "Ocorreu um erro ao atualizar os favoritos.",
+        variant: "destructive"
+      });
+    }
+  });
 
   // Format view count
   const formatViews = (views: number) => {
@@ -159,12 +182,32 @@ const ClipDetail = () => {
     return views.toString();
   };
 
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex justify-center items-center h-96">
+          <p>Carregando...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error || !clipData) {
+    return (
+      <Layout>
+        <div className="flex justify-center items-center h-96">
+          <p>Erro ao carregar o clipe. Por favor, tente novamente.</p>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="flex flex-col space-y-6 lg:flex-row lg:space-y-0 lg:space-x-6">
         <div className="flex-1 space-y-6">
           {/* Video Player */}
-          <VideoPlayer src={clipData.videoUrl} poster={clipData.thumbnail} />
+          <VideoPlayer src={clipData.video_url} poster={clipData.thumbnail_url || "/placeholder.svg"} />
 
           {/* Clip Info */}
           <div className="space-y-4">
@@ -174,7 +217,7 @@ const ClipDetail = () => {
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span>{formatViews(clipData.views)} visualizações</span>
                 <span>•</span>
-                <span>{clipData.createdAt}</span>
+                <span>{new Date(clipData.created_at).toLocaleDateString()}</span>
               </div>
               
               <div className="flex items-center gap-2">
@@ -182,15 +225,16 @@ const ClipDetail = () => {
                   variant="ghost" 
                   size="sm" 
                   className={`flex items-center gap-1 ${liked ? 'text-red-500' : ''}`}
-                  onClick={() => setLiked(!liked)}
+                  onClick={() => favoriteMutation.mutate()}
+                  disabled={favoriteMutation.isPending}
                 >
                   <Heart className={`h-5 w-5 ${liked ? 'fill-current' : ''}`} />
-                  <span>{clipData.likes + (liked ? 1 : 0)}</span>
+                  <span>Favoritar</span>
                 </Button>
                 
                 <Button variant="ghost" size="sm" className="flex items-center gap-1">
                   <MessageSquare className="h-5 w-5" />
-                  <span>{clipData.comments}</span>
+                  <span>Comentar</span>
                 </Button>
                 
                 <Button 
@@ -200,12 +244,12 @@ const ClipDetail = () => {
                   onClick={() => setSaved(!saved)}
                 >
                   <Bookmark className={`h-5 w-5 ${saved ? 'fill-current' : ''}`} />
-                  <span>{clipData.saves + (saved ? 1 : 0)}</span>
+                  <span>Salvar</span>
                 </Button>
                 
                 <Button variant="ghost" size="sm" className="flex items-center gap-1">
                   <Share2 className="h-5 w-5" />
-                  <span>{clipData.shares}</span>
+                  <span>Compartilhar</span>
                 </Button>
                 
                 <DropdownMenu>
@@ -228,49 +272,20 @@ const ClipDetail = () => {
 
             <Separator />
             
-            {/* Creator Info */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={clipData.user.avatar} />
-                  <AvatarFallback>{clipData.user.username[0]}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <Link to={`/user/${clipData.user.id}`} className="font-semibold hover:text-primary">
-                    {clipData.user.username}
-                  </Link>
-                  <p className="text-sm text-muted-foreground">{clipData.user.followers} seguidores</p>
-                </div>
-              </div>
-              <Button 
-                variant={following ? "outline" : "default"}
-                onClick={() => setFollowing(!following)}
-              >
-                {following ? "Seguindo" : "Seguir"}
-              </Button>
-            </div>
-            
             {/* Description */}
             <div className="bg-card rounded-lg p-4">
               <p className="whitespace-pre-line text-sm">{clipData.description}</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Link to={`/games/${clipData.game.toLowerCase()}`}>
-                  <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
-                    {clipData.game}
+                <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
+                  {clipData.game}
+                </Badge>
+                {clipData.tags && clipData.tags.map(tag => (
+                  <Badge key={tag} variant="outline" className="cursor-pointer hover:bg-secondary/30">
+                    #{tag}
                   </Badge>
-                </Link>
-                {clipData.tags.map(tag => (
-                  <Link key={tag} to={`/tags/${tag}`}>
-                    <Badge variant="outline" className="cursor-pointer hover:bg-secondary/30">
-                      #{tag}
-                    </Badge>
-                  </Link>
                 ))}
               </div>
             </div>
-            
-            {/* Comments */}
-            <CommentSection comments={commentsData} clipId={id || ""} />
           </div>
         </div>
         
@@ -279,7 +294,7 @@ const ClipDetail = () => {
           <div>
             <h3 className="font-semibold text-lg mb-4">Clips relacionados</h3>
             <div className="space-y-4">
-              {relatedClips.map(clip => (
+              {relatedClips && relatedClips.map(clip => (
                 <div key={clip.id} className="clip-card">
                   <Link to={`/clips/${clip.id}`} className="block group">
                     <div className="relative aspect-video overflow-hidden rounded-t-lg">
@@ -294,20 +309,17 @@ const ClipDetail = () => {
                     </div>
                     <div className="p-3">
                       <h4 className="font-medium line-clamp-2 text-sm">{clip.title}</h4>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Avatar className="h-5 w-5">
-                          <AvatarImage src={clip.user.avatar} />
-                          <AvatarFallback>{clip.user.username[0]}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-muted-foreground">{clip.user.username}</span>
-                      </div>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        {formatViews(clip.views)} visualizações • {clip.createdAt}
+                        {formatViews(clip.views)} visualizações • {new Date(clip.createdAt).toLocaleDateString()}
                       </div>
                     </div>
                   </Link>
                 </div>
               ))}
+              
+              {(!relatedClips || relatedClips.length === 0) && (
+                <p className="text-sm text-muted-foreground">Nenhum clipe relacionado encontrado.</p>
+              )}
             </div>
           </div>
         </div>

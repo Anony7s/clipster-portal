@@ -43,6 +43,8 @@ import Layout from "@/components/Layout";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from 'uuid';
 
 const games = [
   { id: "valorant", name: "Valorant" },
@@ -76,7 +78,8 @@ const UploadClip = () => {
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [thumbnail, setThumbnail] = useState<string | null>(null);
+  const [thumbnail, setThumbnail] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [tags, setTags] = useState<string[]>([]);
@@ -138,8 +141,9 @@ const UploadClip = () => {
         return;
       }
       
+      setThumbnail(selectedFile);
       const url = URL.createObjectURL(selectedFile);
-      setThumbnail(url);
+      setThumbnailPreview(url);
     }
   };
 
@@ -153,6 +157,7 @@ const UploadClip = () => {
 
   const handleRemoveThumbnail = () => {
     setThumbnail(null);
+    setThumbnailPreview(null);
     if (thumbnailInputRef.current) {
       thumbnailInputRef.current.value = "";
     }
@@ -176,6 +181,21 @@ const UploadClip = () => {
     }
   };
 
+  const getVideoDuration = async (videoFile: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        const duration = video.duration;
+        const minutes = Math.floor(duration / 60);
+        const seconds = Math.floor(duration % 60);
+        resolve(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+      };
+      video.src = URL.createObjectURL(videoFile);
+    });
+  };
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!file) {
       toast({
@@ -186,75 +206,125 @@ const UploadClip = () => {
       return;
     }
     
-    const tagString = tags.join(",");
-    
-    const uploadData = {
-      ...values,
-      tags: tags,
-      fileName: file.name,
-      fileSize: file.size,
-    };
-    
     setIsUploading(true);
+    setUploadProgress(0);
     
-    const simulateUpload = () => {
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += Math.random() * 10;
-        if (progress > 100) {
-          progress = 100;
-          clearInterval(interval);
-          
-          setTimeout(() => {
-            saveClipToStorage(uploadData);
-            setIsUploading(false);
-            setUploadProgress(0);
-            toast({
-              title: "Upload concluído com sucesso!",
-              description: "Seu clipe foi enviado e está sendo processado.",
-            });
-            navigate("/");
-          }, 500);
-        }
-        setUploadProgress(Math.floor(progress));
-      }, 300);
-    };
-    
-    simulateUpload();
-  };
-
-  const saveClipToStorage = (uploadData: any) => {
     try {
-      const clipId = `clip_${Date.now()}`;
+      const { data: { user } } = await supabase.auth.getUser();
       
-      const newClip = {
-        id: clipId,
-        title: uploadData.title,
-        description: uploadData.description || "",
-        game: uploadData.game,
-        thumbnail: thumbnail || "/placeholder.svg",
-        views: 0,
-        date: new Date().toISOString(),
-        duration: "00:30",
-        tags: uploadData.tags,
-      };
+      if (!user) {
+        throw new Error("Usuário não autenticado");
+      }
       
-      const existingClipsJSON = localStorage.getItem("uploadedClips");
-      let existingClips = existingClipsJSON ? JSON.parse(existingClipsJSON) : [];
+      const videoFileName = `${user.id}/${uuidv4()}-${file.name}`;
+      let thumbnailFileName = null;
       
-      existingClips = [newClip, ...existingClips];
+      if (thumbnail) {
+        thumbnailFileName = `${user.id}/${uuidv4()}-${thumbnail.name}`;
+      }
       
-      localStorage.setItem("uploadedClips", JSON.stringify(existingClips));
+      const videoUpload = await supabase.storage
+        .from('clip_videos')
+        .upload(videoFileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
       
-      console.log("Clip saved to localStorage:", newClip);
-    } catch (error) {
-      console.error("Error saving clip to localStorage:", error);
+      if (videoUpload.error) throw videoUpload.error;
+      
+      const { data: videoUrl } = supabase.storage
+        .from('clip_videos')
+        .getPublicUrl(videoFileName);
+      
+      let thumbnailUrl = null;
+      if (thumbnail && thumbnailFileName) {
+        const thumbnailUpload = await supabase.storage
+          .from('clip_thumbnails')
+          .upload(thumbnailFileName, thumbnail, {
+            cacheControl: '3600',
+            upsert: false
+          });
+        
+        if (thumbnailUpload.error) throw thumbnailUpload.error;
+        
+        const { data: thumbUrl } = supabase.storage
+          .from('clip_thumbnails')
+          .getPublicUrl(thumbnailFileName);
+        
+        thumbnailUrl = thumbUrl.publicUrl;
+      }
+      
+      const duration = await getVideoDuration(file);
+      
+      const { error: insertError } = await supabase
+        .from('clips')
+        .insert({
+          user_id: user.id,
+          title: values.title,
+          description: values.description || null,
+          game: values.game,
+          thumbnail_url: thumbnailUrl,
+          video_url: videoUrl.publicUrl,
+          duration: duration,
+        });
+      
+      if (insertError) throw insertError;
+      
+      const { data: clipData, error: fetchError } = await supabase
+        .from('clips')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('title', values.title)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      if (tags.length > 0 && clipData) {
+        const tagInserts = tags.map(tag => ({
+          clip_id: clipData.id,
+          tag: tag.toLowerCase()
+        }));
+        
+        const { error: tagError } = await supabase
+          .from('clip_tags')
+          .insert(tagInserts);
+        
+        if (tagError) throw tagError;
+      }
+      
       toast({
-        title: "Erro ao salvar",
-        description: "Não foi possível salvar seu clipe. Por favor, tente novamente.",
+        title: "Upload concluído com sucesso!",
+        description: "Seu clipe foi enviado e já está disponível.",
+      });
+      
+      navigate("/");
+    } catch (error: any) {
+      console.error("Erro ao fazer upload:", error);
+      toast({
+        title: "Erro ao fazer upload",
+        description: error.message || "Ocorreu um erro ao enviar seu clipe. Por favor, tente novamente.",
         variant: "destructive",
       });
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
     }
+  };
+
+  const startProgressSimulation = () => {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.random() * 10;
+      if (progress > 100) {
+        progress = 100;
+        clearInterval(interval);
+      }
+      setUploadProgress(Math.floor(progress));
+    }, 300);
+    
+    return interval;
   };
 
   return (
@@ -345,7 +415,7 @@ const UploadClip = () => {
                 <div className="space-y-2">
                   <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
                     <img 
-                      src={thumbnail} 
+                      src={thumbnailPreview} 
                       alt="Thumbnail" 
                       className="w-full h-full object-cover" 
                     />

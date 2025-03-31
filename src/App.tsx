@@ -13,6 +13,7 @@ import Favorites from "./pages/Favorites";
 import Settings from "./pages/Settings";
 import Bookmarks from "./pages/Bookmarks";
 import Recentes from "./pages/Recentes";
+import Auth from "./pages/Auth";
 import AuthGuard from "./components/AuthGuard";
 
 const queryClient = new QueryClient();
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/configuracoes" element={<Settings />} />
             <Route path="/bookmarks" element={<Bookmarks />} />
             <Route path="/recentes" element={<Recentes />} />
+            <Route path="/auth" element={<Auth />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthGuard>
