@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
-  Bell, 
   Search, 
   Upload,
   Menu,
   X
 } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import NotificationsPanel from "./NotificationsPanel";
 
 const Navbar = () => {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -61,9 +61,7 @@ const Navbar = () => {
               <Upload className="h-5 w-5" />
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" className="text-muted-foreground">
-            <Bell className="h-5 w-5" />
-          </Button>
+          <NotificationsPanel />
           <Avatar className="h-8 w-8">
             <AvatarImage src="" />
             <AvatarFallback className="bg-primary text-xs">EU</AvatarFallback>

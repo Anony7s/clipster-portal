@@ -1,5 +1,5 @@
 
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { 
   Sidebar as SidebarComponent, 
   SidebarContent,
@@ -22,11 +22,31 @@ import {
   Upload,
   LogOut
 } from "lucide-react";
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/components/ui/use-toast';
 
 const Sidebar = () => {
-  const handleLogout = () => {
-    localStorage.removeItem("isAuthenticated");
-    window.location.href = "/";
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Logout realizado",
+        description: "Você foi desconectado com sucesso.",
+      });
+      
+      navigate('/auth');
+    } catch (error: any) {
+      toast({
+        title: "Erro ao sair",
+        description: error.message || "Ocorreu um erro ao tentar sair.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
