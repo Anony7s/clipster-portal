@@ -69,7 +69,7 @@ const ClipDetail = () => {
         setLiked(!!favData);
       }
       
-      // Increment view count
+      // Increment view count - Fixed the RPC function name
       await supabase.rpc('increment_view_count', { clip_id: id });
       
       return {
@@ -83,13 +83,14 @@ const ClipDetail = () => {
         }
       };
     },
-    retry: 1,
-    onError: (err: any) => {
-      toast({
-        title: "Erro ao carregar clipe",
-        description: err.message || "Não foi possível carregar os detalhes do clipe.",
-        variant: "destructive",
-      });
+    meta: {
+      onError: (err: any) => {
+        toast({
+          title: "Erro ao carregar clipe",
+          description: err.message || "Não foi possível carregar os detalhes do clipe.",
+          variant: "destructive",
+        });
+      }
     }
   });
 

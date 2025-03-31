@@ -62,13 +62,14 @@ const Index = () => {
       
       return clipsWithTags as Clip[];
     },
-    retry: 1,
-    onError: (err: any) => {
-      toast({
-        title: "Erro ao carregar clipes",
-        description: err.message || "Não foi possível carregar seus clipes.",
-        variant: "destructive",
-      });
+    meta: {
+      onError: (err: any) => {
+        toast({
+          title: "Erro ao carregar clipes",
+          description: err.message || "Não foi possível carregar seus clipes.",
+          variant: "destructive",
+        });
+      }
     }
   });
 

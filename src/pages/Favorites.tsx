@@ -70,12 +70,14 @@ const Favorites = () => {
         clip: item.clips
       }));
     },
-    onError: (err: any) => {
-      toast({
-        title: "Erro ao carregar favoritos",
-        description: err.message || "Não foi possível carregar seus favoritos. Por favor, tente novamente.",
-        variant: "destructive",
-      });
+    meta: {
+      onError: (err: any) => {
+        toast({
+          title: "Erro ao carregar favoritos",
+          description: err.message || "Não foi possível carregar seus favoritos. Por favor, tente novamente.",
+          variant: "destructive",
+        });
+      }
     }
   });
 
