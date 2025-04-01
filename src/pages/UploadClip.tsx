@@ -1,501 +1,241 @@
 
-import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
-import { 
-  Form, 
-  FormControl, 
-  FormDescription, 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormMessage 
-} from "@/components/ui/form";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "@/components/ui/use-toast";
-import { 
-  Upload, 
-  UploadCloud, 
-  X, 
-  Play, 
-  Video, 
-  Image as ImageIcon, 
-  Loader2,
-  AlertCircle
-} from "lucide-react";
+import { useState } from "react";
 import Layout from "@/components/Layout";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { v4 as uuidv4 } from 'uuid';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Badge } from "@/components/ui/badge";
+import { Upload, X, ImageIcon, FileImageIcon } from "lucide-react";
 
-const games = [
-  { id: "valorant", name: "Valorant" },
-  { id: "csgo", name: "CS:GO" },
-  { id: "lol", name: "League of Legends" },
-  { id: "fortnite", name: "Fortnite" },
-  { id: "apex", name: "Apex Legends" },
-  { id: "overwatch", name: "Overwatch" },
-  { id: "rocket_league", name: "Rocket League" },
-  { id: "cod", name: "Call of Duty" },
-  { id: "minecraft", name: "Minecraft" },
-  { id: "gta5", name: "GTA V" },
-];
-
-const formSchema = z.object({
-  title: z.string().min(5, {
-    message: "O título deve ter pelo menos 5 caracteres.",
-  }).max(100, {
-    message: "O título não pode ter mais de 100 caracteres.",
-  }),
-  description: z.string().max(500, {
-    message: "A descrição não pode ter mais de 500 caracteres.",
-  }).optional(),
-  game: z.string({
-    required_error: "Por favor selecione um jogo.",
-  }),
-  tags: z.string().optional(),
+const uploadFormSchema = z.object({
+  title: z.string().min(3, "O título deve ter pelo menos 3 caracteres"),
+  description: z.string().optional(),
+  tags: z.array(z.string()).min(1, "Selecione pelo menos uma tag"),
 });
 
-// Maximum file size: 50MB (decreased from 500MB)
-const MAX_FILE_SIZE = 50 * 1024 * 1024;
+type UploadFormValues = z.infer<typeof uploadFormSchema>;
 
 const UploadClip = () => {
+  const { toast } = useToast();
   const navigate = useNavigate();
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [thumbnail, setThumbnail] = useState<File | null>(null);
-  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [tags, setTags] = useState<string[]>([]);
-  const [currentTag, setCurrentTag] = useState("");
-  const [fileSizeError, setFileSizeError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const thumbnailInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [availableTags] = useState([
+    "Perfil", "Paisagem", "Animais", "Comida", "Arte", "Memes", "Abstrato", "Tecnologia", "Esportes"
+  ]);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<UploadFormValues>({
+    resolver: zodResolver(uploadFormSchema),
     defaultValues: {
       title: "",
       description: "",
-      game: "",
-      tags: "",
+      tags: [],
     },
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    setFileSizeError(null);
-    
-    if (files && files.length > 0) {
-      const selectedFile = files[0];
-      
-      if (!selectedFile.type.startsWith("video/")) {
-        toast({
-          title: "Formato não suportado",
-          description: "Por favor, selecione um arquivo de vídeo válido.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Check file size - reduced to 50MB
-      if (selectedFile.size > MAX_FILE_SIZE) {
-        setFileSizeError(`O arquivo excede o tamanho máximo permitido de 50MB. Seu arquivo tem ${(selectedFile.size / (1024 * 1024)).toFixed(2)}MB.`);
-        return;
-      }
-      
-      setFile(selectedFile);
-      
-      const url = URL.createObjectURL(selectedFile);
-      setPreview(url);
-    }
-  };
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const selectedFile = files[0];
-      
-      if (!selectedFile.type.startsWith("image/")) {
-        toast({
-          title: "Formato não suportado",
-          description: "Por favor, selecione um arquivo de imagem válido.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      setThumbnail(selectedFile);
-      const url = URL.createObjectURL(selectedFile);
-      setThumbnailPreview(url);
-    }
-  };
-
-  const handleRemoveFile = () => {
-    setFile(null);
-    setPreview(null);
-    setFileSizeError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const handleRemoveThumbnail = () => {
-    setThumbnail(null);
-    setThumbnailPreview(null);
-    if (thumbnailInputRef.current) {
-      thumbnailInputRef.current.value = "";
-    }
-  };
-
-  const handleAddTag = () => {
-    if (currentTag.trim() && !tags.includes(currentTag.trim()) && tags.length < 10) {
-      setTags([...tags, currentTag.trim()]);
-      setCurrentTag("");
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleAddTag();
-    }
-  };
-
-  const getVideoDuration = async (videoFile: File): Promise<string> => {
-    return new Promise((resolve) => {
-      const video = document.createElement('video');
-      video.preload = 'metadata';
-      video.onloadedmetadata = () => {
-        window.URL.revokeObjectURL(video.src);
-        const duration = video.duration;
-        const minutes = Math.floor(duration / 60);
-        const seconds = Math.floor(duration % 60);
-        resolve(`${minutes}:${seconds.toString().padStart(2, '0')}`);
-      };
-      video.src = URL.createObjectURL(videoFile);
-    });
-  };
-
-  const simulateProgressUpdate = () => {
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 10;
-      if (progress > 100) {
-        progress = 100;
-        clearInterval(interval);
-      }
-      setUploadProgress(Math.floor(progress));
-    }, 300);
-    
-    return interval;
-  };
-
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!file) {
+    // Check if file is an image or gif
+    if (!file.type.startsWith("image/")) {
       toast({
-        title: "Nenhum arquivo selecionado",
-        description: "Por favor, selecione um vídeo para upload.",
+        title: "Formato inválido",
+        description: "Por favor, selecione uma imagem ou GIF.",
         variant: "destructive",
       });
       return;
     }
-    
-    if (fileSizeError) {
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
       toast({
-        title: "Erro de tamanho de arquivo",
-        description: fileSizeError,
+        title: "Arquivo muito grande",
+        description: "O tamanho máximo permitido é 5MB.",
         variant: "destructive",
       });
       return;
     }
-    
-    setIsUploading(true);
-    setUploadProgress(0);
-    
-    // Start progress simulation
-    const progressInterval = simulateProgressUpdate();
-    
+
+    setImageFile(file);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const toggleTag = (tag: string) => {
+    const currentTags = form.getValues("tags");
+    if (currentTags.includes(tag)) {
+      form.setValue(
+        "tags",
+        currentTags.filter((t) => t !== tag)
+      );
+    } else {
+      form.setValue("tags", [...currentTags, tag]);
+    }
+  };
+
+  const onSubmit = async (values: UploadFormValues) => {
+    if (!imageFile) {
+      toast({
+        title: "Imagem não selecionada",
+        description: "Por favor, selecione uma imagem para upload.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
+      setUploading(true);
+
+      // 1. Get current user
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
-        throw new Error("Usuário não autenticado");
-      }
-      
-      const videoFileName = `${user.id}/${uuidv4()}-${file.name}`;
-      let thumbnailFileName = null;
-      
-      // Upload video file
-      const videoUpload = await supabase.storage
-        .from('clip_videos')
-        .upload(videoFileName, file, {
-          cacheControl: '3600',
-          upsert: false
+        toast({
+          title: "Não autorizado",
+          description: "Você precisa estar logado para fazer upload.",
+          variant: "destructive",
         });
-      
-      if (videoUpload.error) {
-        console.error("Erro no upload do vídeo:", videoUpload.error);
-        throw new Error(`Erro ao fazer upload do vídeo: ${videoUpload.error.message}`);
+        navigate("/auth");
+        return;
       }
-      
-      const { data: videoUrl } = supabase.storage
-        .from('clip_videos')
-        .getPublicUrl(videoFileName);
-      
-      // Upload thumbnail if provided
-      let thumbnailUrl = null;
-      if (thumbnail && thumbnail.size < 5 * 1024 * 1024) { // 5MB max for thumbnails
-        thumbnailFileName = `${user.id}/${uuidv4()}-${thumbnail.name}`;
-        
-        const thumbnailUpload = await supabase.storage
-          .from('clip_thumbnails')
-          .upload(thumbnailFileName, thumbnail, {
-            cacheControl: '3600',
-            upsert: false
-          });
-        
-        if (thumbnailUpload.error) {
-          console.error("Erro no upload da thumbnail:", thumbnailUpload.error);
-          // Continue even if thumbnail upload fails
-        } else {
-          const { data: thumbUrl } = supabase.storage
-            .from('clip_thumbnails')
-            .getPublicUrl(thumbnailFileName);
-          
-          thumbnailUrl = thumbUrl.publicUrl;
-        }
-      }
-      
-      // Get video duration
-      const duration = await getVideoDuration(file);
-      
-      // Insert clip data into database
-      const { error: insertError } = await supabase
-        .from('clips')
-        .insert({
-          user_id: user.id,
-          title: values.title,
-          description: values.description || null,
-          game: values.game,
-          thumbnail_url: thumbnailUrl,
-          video_url: videoUrl.publicUrl,
-          duration: duration,
-        });
-      
+
+      // 2. Upload image to storage
+      const fileExt = imageFile.name.split(".").pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const filePath = `images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("images")
+        .upload(filePath, imageFile);
+
+      if (uploadError) throw uploadError;
+
+      // 3. Get public URL
+      const { data } = supabase.storage.from("images").getPublicUrl(filePath);
+
+      // 4. Save image metadata to database
+      const { error: insertError } = await supabase.from("images").insert({
+        title: values.title,
+        description: values.description || null,
+        image_url: data.publicUrl,
+        user_id: user.id,
+        type: imageFile.type.includes("gif") ? "gif" : "image",
+        tags: values.tags,
+        likes: 0,
+      });
+
       if (insertError) throw insertError;
-      
-      // Fetch the created clip to get its ID
-      const { data: clipData, error: fetchError } = await supabase
-        .from('clips')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('title', values.title)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (fetchError) throw fetchError;
-      
-      // Insert tags if any
-      if (tags.length > 0 && clipData) {
-        const tagInserts = tags.map(tag => ({
-          clip_id: clipData.id,
-          tag: tag.toLowerCase()
-        }));
-        
-        const { error: tagError } = await supabase
-          .from('clip_tags')
-          .insert(tagInserts);
-        
-        if (tagError) {
-          console.error("Erro ao adicionar tags:", tagError);
-          // Continue even if tag insertion fails
-        }
-      }
-      
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      
+
       toast({
-        title: "Upload concluído com sucesso!",
-        description: "Seu clipe foi enviado e já está disponível.",
+        title: "Upload concluído",
+        description: "Sua imagem foi enviada com sucesso!",
       });
-      
-      // Create a notification for the user
-      await supabase.rpc('create_notification', {
-        p_user_id: user.id,
-        p_message: `Seu clipe "${values.title}" foi carregado com sucesso!`,
-        p_type: 'success'
-      });
-      
-      // Navigate to home after successful upload
-      setTimeout(() => {
-        navigate("/");
-      }, 1500);
-      
+
+      navigate("/");
     } catch (error: any) {
-      clearInterval(progressInterval);
-      console.error("Erro ao fazer upload:", error);
-      
+      console.error("Upload error:", error);
       toast({
-        title: "Erro ao fazer upload",
-        description: error.message || "Ocorreu um erro ao enviar seu clipe. Por favor, tente novamente.",
+        title: "Erro no upload",
+        description: error.message || "Ocorreu um erro durante o upload.",
         variant: "destructive",
       });
     } finally {
-      setIsUploading(false);
+      setUploading(false);
     }
   };
 
   return (
     <Layout>
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold">Upload de Novo Clipe</h1>
-          <p className="text-muted-foreground mt-1">Compartilhe seus melhores momentos com a comunidade</p>
-        </div>
+      <div className="container max-w-3xl mx-auto px-4 py-6">
+        <h1 className="text-3xl font-bold mb-6">Upload de Imagem</h1>
 
-        {fileSizeError && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Erro de tamanho de arquivo</AlertTitle>
-            <AlertDescription>{fileSizeError}</AlertDescription>
-          </Alert>
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Nova Imagem</CardTitle>
+            <CardDescription>
+              Compartilhe suas melhores imagens e GIFs com a comunidade.
+            </CardDescription>
+          </CardHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="md:col-span-1 h-fit">
-            <CardHeader>
-              <CardTitle>Vídeo</CardTitle>
-              <CardDescription>Faça upload do seu clipe (máx. 50MB)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!file ? (
-                <div 
-                  className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <UploadCloud className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground mb-1">Arraste e solte seu vídeo aqui</p>
-                  <p className="text-xs text-muted-foreground mb-3">MP4, MOV, WEBM até 50MB</p>
-                  <Button size="sm" className="mt-2">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Selecionar Arquivo
-                  </Button>
-                  <input
+          <CardContent>
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-6"
+              >
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="mx-auto max-h-80 max-w-full rounded"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2"
+                        onClick={() => {
+                          setImageFile(null);
+                          setImagePreview(null);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="py-8">
+                      <div className="flex flex-col items-center">
+                        <div className="mb-4">
+                          {imageFile?.type.includes("gif") ? (
+                            <FileImageIcon className="h-12 w-12 text-muted-foreground" />
+                          ) : (
+                            <ImageIcon className="h-12 w-12 text-muted-foreground" />
+                          )}
+                        </div>
+                        <p className="mb-2 text-sm text-muted-foreground">
+                          Arraste e solte uma imagem ou GIF aqui, ou clique para
+                          selecionar
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          PNG, JPG ou GIF (máx. 5MB)
+                        </p>
+                        <Label htmlFor="image-upload">
+                          <div className="mt-4 inline-flex cursor-pointer items-center justify-center rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90">
+                            <Upload className="mr-2 h-4 w-4" />
+                            Selecionar Arquivo
+                          </div>
+                        </Label>
+                      </div>
+                    </div>
+                  )}
+                  <Input
+                    id="image-upload"
                     type="file"
-                    ref={fileInputRef}
-                    accept="video/*"
+                    accept="image/*"
                     className="hidden"
                     onChange={handleFileChange}
                   />
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
-                    {preview && (
-                      <video 
-                        src={preview} 
-                        className="w-full h-full object-cover" 
-                        controls
-                      />
-                    )}
-                    <Button 
-                      variant="destructive" 
-                      size="icon" 
-                      className="absolute top-2 right-2 h-7 w-7"
-                      onClick={handleRemoveFile}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    <p className="font-medium truncate">{file.name}</p>
-                    <p>{(file.size / (1024 * 1024)).toFixed(2)} MB</p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-            <CardHeader>
-              <CardTitle>Thumbnail</CardTitle>
-              <CardDescription>Opcional - Use uma imagem personalizada</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!thumbnail ? (
-                <div 
-                  className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => thumbnailInputRef.current?.click()}
-                >
-                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground mb-2">Upload de thumbnail personalizada</p>
-                  <Button size="sm" variant="outline">
-                    Selecionar Imagem
-                  </Button>
-                  <input
-                    type="file"
-                    ref={thumbnailInputRef}
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleThumbnailChange}
-                  />
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
-                    <img 
-                      src={thumbnailPreview} 
-                      alt="Thumbnail" 
-                      className="w-full h-full object-cover" 
-                    />
-                    <Button 
-                      variant="destructive" 
-                      size="icon" 
-                      className="absolute top-2 right-2 h-7 w-7"
-                      onClick={handleRemoveThumbnail}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
 
-          <Card className="md:col-span-2">
-            <CardHeader>
-              <CardTitle>Detalhes do Clipe</CardTitle>
-              <CardDescription>Preencha as informações sobre seu clipe</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid gap-4">
                   <FormField
                     control={form.control}
                     name="title"
@@ -503,11 +243,11 @@ const UploadClip = () => {
                       <FormItem>
                         <FormLabel>Título</FormLabel>
                         <FormControl>
-                          <Input placeholder="Um título descritivo para seu clipe" {...field} />
+                          <Input
+                            placeholder="Digite um título para sua imagem"
+                            {...field}
+                          />
                         </FormControl>
-                        <FormDescription>
-                          Um bom título ajuda seu clipe a ser descoberto
-                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -521,14 +261,11 @@ const UploadClip = () => {
                         <FormLabel>Descrição</FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="Conte mais sobre esse momento..."
-                            className="min-h-[120px]"
+                            placeholder="Adicione uma descrição (opcional)"
+                            className="resize-none"
                             {...field}
                           />
                         </FormControl>
-                        <FormDescription>
-                          Descreva o que acontece no clipe e por que ele é incrível
-                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -536,118 +273,45 @@ const UploadClip = () => {
 
                   <FormField
                     control={form.control}
-                    name="game"
-                    render={({ field }) => (
+                    name="tags"
+                    render={() => (
                       <FormItem>
-                        <FormLabel>Jogo</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione o jogo" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <ScrollArea className="h-80">
-                              {games.map((game) => (
-                                <SelectItem key={game.id} value={game.id}>
-                                  {game.name}
-                                </SelectItem>
-                              ))}
-                            </ScrollArea>
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>
-                          Categorizar pelo jogo correto aumenta a visibilidade
-                        </FormDescription>
+                        <FormLabel>Tags</FormLabel>
+                        <FormControl>
+                          <div className="flex flex-wrap gap-2">
+                            {availableTags.map((tag) => (
+                              <Badge
+                                key={tag}
+                                variant={
+                                  form.getValues("tags").includes(tag)
+                                    ? "default"
+                                    : "outline"
+                                }
+                                className="cursor-pointer"
+                                onClick={() => toggleTag(tag)}
+                              >
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  <FormItem>
-                    <FormLabel>Tags</FormLabel>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Adicionar tag..."
-                        value={currentTag}
-                        onChange={(e) => setCurrentTag(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                      />
-                      <Button 
-                        type="button" 
-                        variant="secondary" 
-                        onClick={handleAddTag}
-                        disabled={!currentTag.trim() || tags.includes(currentTag.trim()) || tags.length >= 10}
-                      >
-                        Adicionar
-                      </Button>
-                    </div>
-                    {tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        {tags.map((tag) => (
-                          <Badge
-                            key={tag}
-                            variant="outline"
-                            className="flex items-center gap-1 hover:bg-secondary/20"
-                          >
-                            {tag}
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-3 w-3 rounded-full"
-                              onClick={() => handleRemoveTag(tag)}
-                            >
-                              <X className="h-2 w-2" />
-                            </Button>
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                    <FormDescription>
-                      Até 10 tags para ajudar outros a encontrar seu clipe
-                    </FormDescription>
-                  </FormItem>
-
-                  {isUploading ? (
-                    <div className="space-y-4">
-                      <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary transition-all duration-300"
-                          style={{ width: `${uploadProgress}%` }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-center text-sm">
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        <span>Enviando... {uploadProgress}%</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-end space-x-3">
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        onClick={() => navigate("/")}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button 
-                        type="submit" 
-                        disabled={!file || !!fileSizeError}
-                      >
-                        <Video className="h-4 w-4 mr-2" />
-                        Publicar Clipe
-                      </Button>
-                    </div>
-                  )}
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </div>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={uploading || !imageFile}
+                  >
+                    {uploading ? "Enviando..." : "Publicar Imagem"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );

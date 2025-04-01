@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
-import ClipDetail from "./pages/ClipDetail";
+import ImageDetail from "./pages/ImageDetail";
 import UploadClip from "./pages/UploadClip";
 import Collections from "./pages/Collections";
 import NotFound from "./pages/NotFound";
@@ -15,6 +15,7 @@ import Bookmarks from "./pages/Bookmarks";
 import Recentes from "./pages/Recentes";
 import Auth from "./pages/Auth";
 import AuthGuard from "./components/AuthGuard";
+import UserProfile from "./pages/UserProfile";
 
 const queryClient = new QueryClient();
 
@@ -27,7 +28,7 @@ const App = () => (
         <AuthGuard>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/clips/:id" element={<ClipDetail />} />
+            <Route path="/image/:id" element={<ImageDetail />} />
             <Route path="/upload" element={<UploadClip />} />
             <Route path="/collections" element={<Collections />} />
             <Route path="/favoritos" element={<Favorites />} />
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/bookmarks" element={<Bookmarks />} />
             <Route path="/recentes" element={<Recentes />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/profile/:id" element={<UserProfile />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthGuard>

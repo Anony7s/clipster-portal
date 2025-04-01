@@ -26,12 +26,17 @@ import * as z from "zod";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { ImageIcon, CameraIcon } from "lucide-react";
 
 // Form validation schema
 const profileFormSchema = z.object({
   username: z.string().min(3, {
     message: "O nome de usuário deve ter pelo menos 3 caracteres.",
   }),
+  bio: z.string().optional(),
+  website: z.string().url({ message: "Informe uma URL válida" }).optional().or(z.literal('')),
   avatar_url: z.string().optional(),
 });
 
@@ -42,11 +47,14 @@ export const ProfileSettings = () => {
   const [user, setUser] = useState<User | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [savedImages, setSavedImages] = useState<{id: string, url: string, title: string}[]>([]);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
       username: "",
+      bio: "",
+      website: "",
       avatar_url: "",
     },
   });
@@ -58,22 +66,39 @@ export const ProfileSettings = () => {
       if (user) {
         setUser(user);
         
-        // Query directly from RPC (Remote Procedure Call) to fix the type issue
+        // Fetch profile data
         const { data: profile, error } = await supabase
           .from('profiles')
-          .select('username, avatar_url')
+          .select('username, avatar_url, bio, website')
           .eq('id', user.id)
           .single();
         
         if (profile) {
           form.reset({
             username: profile.username || "",
+            bio: profile.bio || "",
+            website: profile.website || "",
             avatar_url: profile.avatar_url || "",
           });
           
           if (profile.avatar_url) {
             setAvatarPreview(profile.avatar_url);
           }
+        }
+
+        // Fetch saved images
+        const { data: savedImagesData } = await supabase
+          .from('saved_images')
+          .select('id, image_url, title')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (savedImagesData) {
+          setSavedImages(savedImagesData.map(img => ({
+            id: img.id,
+            url: img.image_url,
+            title: img.title
+          })));
         }
       }
     };
@@ -123,11 +148,13 @@ export const ProfileSettings = () => {
         avatarUrl = data.publicUrl;
       }
       
-      // Update the profile using RPC to avoid type issues
+      // Update the profile
       const { error } = await supabase
         .from('profiles')
         .update({
           username: values.username,
+          bio: values.bio,
+          website: values.website,
           avatar_url: avatarUrl,
           updated_at: new Date().toISOString(),
         })
@@ -151,64 +178,183 @@ export const ProfileSettings = () => {
     }
   };
 
+  const removeSavedImage = async (imageId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('saved_images')
+        .delete()
+        .eq('id', imageId)
+        .eq('user_id', user.id);
+      
+      if (error) throw error;
+
+      // Update the local state
+      setSavedImages(savedImages.filter(img => img.id !== imageId));
+      
+      toast({
+        title: "Imagem removida",
+        description: "A imagem foi removida da sua coleção.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Ocorreu um erro ao remover a imagem.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Informações do Perfil</CardTitle>
-        <CardDescription>
-          Atualize suas informações de perfil e avatar.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="flex flex-col items-center mb-6">
-              <Avatar className="w-24 h-24 mb-4">
-                <AvatarImage src={avatarPreview || ""} />
-                <AvatarFallback>
-                  {form.getValues("username")?.[0]?.toUpperCase() || "U"}
-                </AvatarFallback>
-              </Avatar>
-              
-              <div className="flex items-center gap-2">
-                <Input
-                  type="file"
-                  id="avatar"
-                  accept="image/*"
-                  className="max-w-60"
-                  onChange={handleFileChange}
+    <Tabs defaultValue="profile" className="w-full">
+      <TabsList className="mb-4">
+        <TabsTrigger value="profile">Perfil</TabsTrigger>
+        <TabsTrigger value="gallery">Minhas Imagens</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="profile">
+        <Card>
+          <CardHeader>
+            <CardTitle>Informações do Perfil</CardTitle>
+            <CardDescription>
+              Atualize suas informações de perfil e avatar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="flex flex-col items-center mb-6">
+                  <Avatar className="w-24 h-24 mb-4">
+                    <AvatarImage src={avatarPreview || ""} />
+                    <AvatarFallback>
+                      {form.getValues("username")?.[0]?.toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      id="avatar"
+                      accept="image/*"
+                      className="max-w-60"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                </div>
+                
+                <FormField
+                  control={form.control}
+                  name="username"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome de usuário</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Seu nome de usuário" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Este é o nome que será exibido para outros usuários.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
+                
+                <FormField
+                  control={form.control}
+                  name="bio"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Biografia</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Conte um pouco sobre você..."
+                          className="resize-none"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="website"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Website</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://seusite.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Atualizando..." : "Atualizar Perfil"}
+                </Button>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="gallery">
+        <Card>
+          <CardHeader>
+            <CardTitle>Minhas Imagens Salvas</CardTitle>
+            <CardDescription>
+              Gerencie as imagens e GIFs que você salvou.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {savedImages.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {savedImages.map(image => (
+                  <div key={image.id} className="relative group">
+                    <img 
+                      src={image.url} 
+                      alt={image.title} 
+                      className="w-full h-40 object-cover rounded-md"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-md flex items-center justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button 
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => removeSavedImage(image.id)}
+                        >
+                          Remover
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="mt-1 text-sm font-medium truncate">{image.title}</p>
+                  </div>
+                ))}
               </div>
-            </div>
-            
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome de usuário</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Seu nome de usuário" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    Este é o nome que será exibido para outros usuários.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Atualizando..." : "Atualizar Perfil"}
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <ImageIcon className="h-12 w-12 mb-4" />
+                <p>Você ainda não salvou nenhuma imagem.</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={() => window.location.href = '/'}
+                >
+                  Explorar Imagens
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
   );
 };
 

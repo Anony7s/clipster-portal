@@ -18,15 +18,29 @@ import {
   Bookmark, 
   Heart, 
   Settings,
-  FolderPlus,
+  Image,
   Upload,
-  LogOut
+  LogOut,
+  Sparkles,
+  GalleryHorizontalEnd,
+  User
 } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/components/ui/use-toast';
+import { useState, useEffect } from "react";
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    
+    fetchUser();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -53,7 +67,7 @@ const Sidebar = () => {
     <SidebarComponent>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Meu Menu</SidebarGroupLabel>
+          <SidebarGroupLabel>Explorar</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
@@ -68,7 +82,7 @@ const Sidebar = () => {
                 <SidebarMenuButton asChild>
                   <Link to="/recentes">
                     <Flame size={20} />
-                    <span>Recentes</span>
+                    <span>Tendências</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -83,7 +97,7 @@ const Sidebar = () => {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <Link to="/collections">
-                    <FolderPlus size={20} />
+                    <GalleryHorizontalEnd size={20} />
                     <span>Coleções</span>
                   </Link>
                 </SidebarMenuButton>
@@ -101,39 +115,73 @@ const Sidebar = () => {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Minha Conta</SidebarGroupLabel>
+          <SidebarGroupLabel>Categorias</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link to="/favoritos">
-                    <Heart size={20} />
-                    <span>Favoritos</span>
+                  <Link to="/?category=Perfil">
+                    <User size={20} />
+                    <span>Fotos de Perfil</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
-                  <Link to="/configuracoes">
-                    <Settings size={20} />
-                    <span>Configurações</span>
+                  <Link to="/?category=Paisagem">
+                    <Image size={20} />
+                    <span>Paisagens</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={handleLogout}>
-                  <LogOut size={20} />
-                  <span>Sair</span>
+                <SidebarMenuButton asChild>
+                  <Link to="/?category=Arte">
+                    <Sparkles size={20} />
+                    <span>Arte Digital</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {user && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Minha Conta</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link to="/favoritos">
+                      <Heart size={20} />
+                      <span>Favoritos</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link to="/configuracoes">
+                      <Settings size={20} />
+                      <span>Configurações</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton onClick={handleLogout}>
+                    <LogOut size={20} />
+                    <span>Sair</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       
       <SidebarFooter className="px-3 py-2">
         <div className="text-xs text-muted-foreground">
-          © 2023 Minha Plataforma de Clipes
+          © 2024 PhotoBank
         </div>
       </SidebarFooter>
     </SidebarComponent>
