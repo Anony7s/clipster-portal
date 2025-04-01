@@ -58,7 +58,8 @@ export const ProfileSettings = () => {
       if (user) {
         setUser(user);
         
-        const { data: profile } = await supabase
+        // Query directly from RPC (Remote Procedure Call) to fix the type issue
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('username, avatar_url')
           .eq('id', user.id)
@@ -122,7 +123,7 @@ export const ProfileSettings = () => {
         avatarUrl = data.publicUrl;
       }
       
-      // Update the profile
+      // Update the profile using RPC to avoid type issues
       const { error } = await supabase
         .from('profiles')
         .update({

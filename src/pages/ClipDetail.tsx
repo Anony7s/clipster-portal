@@ -78,19 +78,31 @@ const ClipDetail = () => {
       
       if (clipError) throw clipError;
       
-      // Get user details
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('username, avatar_url')
-        .eq('id', clipDetails.user_id)
-        .single();
-        
-      const userData2 = {
+      // Separately get the user profile to avoid type errors
+      let userData2 = {
         id: clipDetails.user_id,
-        username: profileData?.username || "Usuário",
-        avatar: profileData?.avatar_url || "/placeholder.svg",
-        followers: 0 // This could be implemented with a followers table
+        username: "Usuário",
+        avatar: "/placeholder.svg",
+        followers: 0
       };
+      
+      // Only try to get profile data if we have a user_id
+      if (clipDetails.user_id) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('id', clipDetails.user_id)
+          .single();
+          
+        if (profileData) {
+          userData2 = {
+            id: clipDetails.user_id,
+            username: profileData.username || "Usuário",
+            avatar: profileData.avatar_url || "/placeholder.svg",
+            followers: 0
+          };
+        }
+      }
       
       // Initialize empty comments array
       setComments([]);
