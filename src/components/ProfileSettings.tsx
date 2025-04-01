@@ -94,7 +94,7 @@ export const ProfileSettings = () => {
           .order('created_at', { ascending: false });
         
         if (savedImagesData) {
-          setSavedImages(savedImagesData.map(img => ({
+          setSavedImages(savedImagesData.map((img: any) => ({
             id: img.id,
             url: img.image_url,
             title: img.title

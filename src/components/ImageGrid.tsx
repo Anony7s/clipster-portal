@@ -77,7 +77,7 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
         
         if (imagesData) {
           // Fetch user details for each image
-          const imageWithUserDetails = await Promise.all(imagesData.map(async (image) => {
+          const imageWithUserDetails = await Promise.all(imagesData.map(async (image: any) => {
             const { data: userData } = await supabase
               .from('profiles')
               .select('username, avatar_url')
@@ -101,7 +101,7 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
               .eq('user_id', user.id);
               
             if (savedData) {
-              setSavedImageIds(savedData.map(item => item.image_id));
+              setSavedImageIds(savedData.map((item: any) => item.image_id));
             }
             
             const { data: likedData } = await supabase
@@ -110,7 +110,7 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
               .eq('user_id', user.id);
               
             if (likedData) {
-              setLikedImageIds(likedData.map(item => item.image_id));
+              setLikedImageIds(likedData.map((item: any) => item.image_id));
             }
           }
         }
@@ -330,6 +330,8 @@ const ImageCard = ({
   isSaved,
   isAuthenticated 
 }: ImageCardProps) => {
+  const { toast } = useToast();
+  
   return (
     <Card className="overflow-hidden group">
       <Link to={`/image/${image.id}`} className="block overflow-hidden">
