@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
@@ -27,7 +26,7 @@ export const NotificationsPanel = () => {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch notifications - sem refetch automático
+  // Fetch notifications - disabled automatic refetching
   const { data: notifications, isLoading } = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => {
@@ -46,7 +45,8 @@ export const NotificationsPanel = () => {
       if (error) throw error;
       return data as Notification[];
     },
-    // Removido refetchInterval para evitar notificações constantes
+    refetchOnWindowFocus: false, // Disable automatic refetch on window focus
+    refetchOnMount: true, // Only fetch once when component mounts
   });
 
   // Mark notification as read

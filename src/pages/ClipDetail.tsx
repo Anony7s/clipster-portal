@@ -19,22 +19,21 @@ import { toast } from "@/components/ui/use-toast";
 import { Heart, Bookmark, Share, Calendar, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
-// This is a temporary function for view counting
-// In a production environment, a proper database function would be used
-const incrementViewCount = async (clipId: string) => {
-  try {
-    const { error } = await supabase.rpc('increment_view_count', { clip_id: clipId });
-    if (error) throw error;
-  } catch (error) {
-    console.error("Error incrementing view count:", error);
-  }
-};
-
 const ClipDetail = () => {
   const { id } = useParams<{ id: string }>();
   const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [comments, setComments] = useState<any[]>([]);
+  
+  const incrementViewCount = async (clipId: string) => {
+    try {
+      // Using the increment_view_count RPC function
+      const { error } = await supabase.rpc('increment_view_count', { clip_id: clipId });
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error incrementing view count:", error);
+    }
+  };
   
   const { data: clipData, isLoading, error } = useQuery({
     queryKey: ['clipDetail', id],
@@ -52,25 +51,22 @@ const ClipDetail = () => {
           .eq('clip_id', id)
           .maybeSingle();
           
-        if (userData.user && id) {
-          // Verificar se o usuário tem este clip nos bookmarks
-          const { data: bookmarkData } = await supabase
-            .from('bookmarks')
-            .select('id')
-            .eq('user_id', userData.user.id)
-            .eq('clip_id', id)
-            .maybeSingle();
+        // Check if the user has this clip in bookmarks
+        const { data: bookmarkData } = await supabase
+          .from('bookmarks')
+          .select('id')
+          .eq('user_id', userData.user.id)
+          .eq('clip_id', id)
+          .maybeSingle();
             
-          setBookmarked(!!bookmarkData);
-        }
-        
         setLiked(!!favData);
+        setBookmarked(!!bookmarkData);
       }
       
       // Increment view count
       await incrementViewCount(id);
       
-      // Get clip details
+      // Get clip details with tags
       const { data: clipDetails, error: clipError } = await supabase
         .from('clips')
         .select(`
@@ -82,49 +78,22 @@ const ClipDetail = () => {
       
       if (clipError) throw clipError;
       
-      // Get user details (mock for now)
+      // Get user details
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('username, avatar_url')
+        .eq('id', clipDetails.user_id)
+        .single();
+        
       const userData2 = {
-        id: "user123",
-        username: "GamerPro99",
-        avatar: "/placeholder.svg",
-        followers: 245
+        id: clipDetails.user_id,
+        username: profileData?.username || "Usuário",
+        avatar: profileData?.avatar_url || "/placeholder.svg",
+        followers: 0 // This could be implemented with a followers table
       };
       
-      // Load mock comments for now
-      setComments([
-        {
-          id: "1",
-          user: {
-            username: "GamerFan54",
-            avatar: "/placeholder.svg"
-          },
-          content: "Este clipe é incrível! Como você conseguiu fazer isso?",
-          likes: 12,
-          createdAt: "2 dias atrás"
-        },
-        {
-          id: "2",
-          user: {
-            username: "ProGamer22",
-            avatar: "/placeholder.svg"
-          },
-          content: "Muito bom! Que jogada impressionante.",
-          likes: 5,
-          createdAt: "1 dia atrás",
-          replies: [
-            {
-              id: "2-1",
-              user: {
-                username: "GameMaster",
-                avatar: "/placeholder.svg"
-              },
-              content: "Concordo totalmente, nunca vi nada parecido!",
-              likes: 3,
-              createdAt: "20 horas atrás"
-            }
-          ]
-        }
-      ]);
+      // Initialize empty comments array
+      setComments([]);
       
       return {
         ...clipDetails,

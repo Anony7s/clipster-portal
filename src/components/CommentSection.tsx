@@ -10,6 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/components/ui/use-toast";
 
 export interface CommentData {
   id: string;
@@ -97,14 +99,43 @@ const Comment = ({ comment }: { comment: CommentData }) => {
   );
 };
 
-const CommentSection = ({ comments, clipId }: CommentSectionProps) => {
+const CommentSection = ({ clipId, comments = [] }: CommentSectionProps) => {
   const [newComment, setNewComment] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmitComment = () => {
+  const handleSubmitComment = async () => {
     if (newComment.trim()) {
-      // Here you would normally send the comment to an API
-      console.log("New comment on clip", clipId, ":", newComment);
-      setNewComment("");
+      setIsSubmitting(true);
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        
+        if (!userData.user) {
+          toast({
+            title: "Autenticação necessária",
+            description: "Você precisa estar logado para comentar.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        // Here you would normally send the comment to an API
+        console.log("New comment on clip", clipId, ":", newComment);
+        
+        // Reset form
+        setNewComment("");
+        toast({
+          title: "Comentário enviado",
+          description: "Seu comentário foi enviado com sucesso.",
+        });
+      } catch (error: any) {
+        toast({
+          title: "Erro ao comentar",
+          description: error.message || "Não foi possível enviar o comentário.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -126,19 +157,25 @@ const CommentSection = ({ comments, clipId }: CommentSectionProps) => {
           <div className="flex justify-end mt-2">
             <Button 
               onClick={handleSubmitComment}
-              disabled={!newComment.trim()}
+              disabled={!newComment.trim() || isSubmitting}
             >
-              Comentar
+              {isSubmitting ? "Enviando..." : "Comentar"}
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="mt-6 space-y-6">
-        {comments.map((comment) => (
-          <Comment key={comment.id} comment={comment} />
-        ))}
-      </div>
+      {comments.length > 0 ? (
+        <div className="mt-6 space-y-6">
+          {comments.map((comment) => (
+            <Comment key={comment.id} comment={comment} />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-6 text-center py-8 border rounded-md bg-muted/20">
+          <p className="text-muted-foreground">Nenhum comentário ainda. Seja o primeiro a comentar!</p>
+        </div>
+      )}
     </div>
   );
 };

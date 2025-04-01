@@ -26,6 +26,8 @@ import * as z from "zod";
 import { toast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings as SettingsIcon, Lock, User } from "lucide-react";
+import ProfileSettings from "@/components/ProfileSettings";
+import { supabase } from "@/integrations/supabase/client";
 
 // Form validation schema
 const passwordFormSchema = z.object({
@@ -58,24 +60,12 @@ const Settings = () => {
   const onSubmit = async (values: z.infer<typeof passwordFormSchema>) => {
     setIsSubmitting(true);
     
-    // Simulating password check and update
-    setTimeout(() => {
-      // In a real app, you would check if the current password is correct
-      // and then update the password in a secure way
-      const currentStoredPassword = "minhaplataforma"; // This is just for demo purposes
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: values.newPassword
+      });
       
-      if (values.currentPassword !== currentStoredPassword) {
-        toast({
-          title: "Senha atual incorreta",
-          description: "A senha atual que você informou está incorreta.",
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-      
-      // Update password in localStorage (in a real app, this would be stored securely)
-      localStorage.setItem("isAuthenticated", "true");
+      if (error) throw error;
       
       // Show success message
       toast({
@@ -85,8 +75,15 @@ const Settings = () => {
       
       // Reset form
       form.reset();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar senha",
+        description: error.message || "Ocorreu um erro ao atualizar a senha.",
+        variant: "destructive",
+      });
+    } finally {
       setIsSubmitting(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -110,19 +107,7 @@ const Settings = () => {
           </TabsList>
           
           <TabsContent value="account">
-            <Card>
-              <CardHeader>
-                <CardTitle>Informações da Conta</CardTitle>
-                <CardDescription>
-                  Gerencie suas informações de perfil e preferências.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Atualmente, seu perfil é privado e só pode ser acessado por você.
-                </p>
-              </CardContent>
-            </Card>
+            <ProfileSettings />
           </TabsContent>
           
           <TabsContent value="security">
