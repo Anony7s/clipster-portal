@@ -12,6 +12,6 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   global: {
     // Disable automatic notifications when switching tabs
-    fetch: (...args) => fetch(...args)
+    fetch: (url, options) => fetch(url, options)
   }
 });

@@ -12,7 +12,7 @@ export function createTypedSupabaseClient() {
   
   return createClient<Database>(supabaseUrl, supabaseKey, {
     global: {
-      fetch: (...args) => fetch(...args)
+      fetch: (url, options) => fetch(url, options)
     }
   });
 }
