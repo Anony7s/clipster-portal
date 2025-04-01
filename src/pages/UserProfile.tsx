@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import ImageGrid from "@/components/ImageGrid";
-import { supabase } from "@/integrations/supabase/client";
+import { typedSupabase as supabase } from "@/types/supabase";
 import { 
   User, 
   Calendar, 
@@ -58,14 +58,15 @@ const UserProfile = () => {
         // Get stats
         const { data: imagesCount } = await supabase
           .from('images')
-          .select('id', { count: 'exact', head: true })
+          .select('id', { count: 'exact' })
           .eq('user_id', id);
           
+        // Get total likes for user
         const { data: likesData } = await supabase
           .rpc('get_user_total_likes', { user_id: id });
           
         setStats({
-          totalImages: imagesCount?.count || 0,
+          totalImages: imagesCount?.length || 0,
           totalLikes: likesData?.[0]?.total_likes || 0,
           followers: 0, // To be implemented with a followers table
           following: 0  // To be implemented with a followers table
