@@ -1,214 +1,190 @@
-
-import { Link, useNavigate } from "react-router-dom";
-import { 
-  Sidebar as SidebarComponent, 
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarFooter,
-} from "@/components/ui/sidebar";
-
-import { 
-  Home, 
-  Flame, 
-  Bookmark, 
-  Heart, 
-  Settings,
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import {
+  Home,
   Image,
   Upload,
-  LogOut,
-  Sparkles,
-  GalleryHorizontalEnd,
+  Collection,
+  Heart,
+  Settings,
+  Bookmark,
+  Clock,
   User,
-  Shield
+  LogOut,
+  LayoutDashboard,
 } from "lucide-react";
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/components/ui/use-toast';
-import { useState, useEffect } from "react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { useSidebar } from "@/components/ui/sidebar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useToast } from "@/components/ui/use-toast";
+import { typedSupabase as supabase } from "@/types/supabase";
 
 const Sidebar = () => {
-  const navigate = useNavigate();
+  const location = useLocation();
+  const { isOpen, onClose } = useSidebar();
   const [user, setUser] = useState<any>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { toast } = useToast();
 
-  useEffect(() => {
+  useState(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
-      
-      if (user) {
-        // Verificar se o usuário é administrador
-        const { data, error } = await supabase.rpc('is_admin', { user_id: user.id });
-        
-        if (error) {
-          console.error('Erro ao verificar status de administrador:', error);
-        } else {
-          setIsAdmin(data || false);
-        }
-      }
     };
-    
+
     fetchUser();
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Logout realizado",
-        description: "Você foi desconectado com sucesso.",
-      });
-      
-      navigate('/auth');
-    } catch (error: any) {
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
       toast({
         title: "Erro ao sair",
-        description: error.message || "Ocorreu um erro ao tentar sair.",
+        description: "Ocorreu um erro ao fazer logout.",
         variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Logout",
+        description: "Logout efetuado com sucesso!",
       });
     }
   };
 
+  const menuItems = [
+    {
+      path: "/",
+      label: "Início",
+      icon: Home,
+    },
+    {
+      path: "/collections",
+      label: "Coleções",
+      icon: Collection,
+    },
+    {
+      path: "/upload",
+      label: "Upload",
+      icon: Upload,
+    },
+    {
+      path: "/favoritos",
+      label: "Favoritos",
+      icon: Heart,
+    },
+    {
+      path: "/bookmarks",
+      label: "Bookmarks",
+      icon: Bookmark,
+    },
+    {
+      path: "/recentes",
+      label: "Recentes",
+      icon: Clock,
+    },
+    {
+      path: "/configuracoes",
+      label: "Configurações",
+      icon: Settings,
+    },
+  ];
+
+  const adminMenuItems = [
+    {
+      path: "/admin",
+      label: "Admin Panel",
+      icon: LayoutDashboard,
+    },
+  ];
+
   return (
-    <SidebarComponent>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Explorar</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link to="/">
-                    <Home size={20} />
-                    <span>Início</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link to="/recentes">
-                    <Flame size={20} />
-                    <span>Tendências</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link to="/upload">
-                    <Upload size={20} />
-                    <span>Upload</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link to="/collections">
-                    <GalleryHorizontalEnd size={20} />
-                    <span>Coleções</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link to="/bookmarks">
-                    <Bookmark size={20} />
-                    <span>Salvos</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="md:hidden">
+          <MenuIcon className="h-5 w-5" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-64 p-0 pt-6">
+        <div className="flex flex-col h-full">
+          <SheetHeader className="px-6 pb-4">
+            <SheetTitle>Menu</SheetTitle>
+            <SheetDescription>
+              Navegue pelas opções do aplicativo.
+            </SheetDescription>
+          </SheetHeader>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Categorias</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link to="/?category=Perfil">
-                    <User size={20} />
-                    <span>Fotos de Perfil</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link to="/?category=Paisagem">
-                    <Image size={20} />
-                    <span>Paisagens</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <Link to="/?category=Arte">
-                    <Sparkles size={20} />
-                    <span>Arte Digital</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+          <div className="px-4 pb-4">
+            {user ? (
+              <Link to={`/profile/${user.id}`} className="flex items-center gap-3 py-2 rounded-md hover:bg-secondary transition-colors">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage src={user?.user_metadata?.avatar_url} />
+                  <AvatarFallback>{user?.email?.[0]?.toUpperCase() || "U"}</AvatarFallback>
+                </Avatar>
+                <span className="text-sm font-medium">{user?.user_metadata?.username || user?.email}</span>
+              </Link>
+            ) : (
+              <Link to="/auth" className="flex items-center gap-3 py-2 rounded-md hover:bg-secondary transition-colors">
+                <User className="h-4 w-4" />
+                <span className="text-sm font-medium">Entrar / Cadastrar</span>
+              </Link>
+            )}
+          </div>
 
-        {user && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Minha Conta</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link to="/favoritos">
-                      <Heart size={20} />
-                      <span>Favoritos</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link to="/configuracoes">
-                      <Settings size={20} />
-                      <span>Configurações</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                {isAdmin && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link to="/admin">
-                        <Shield size={20} />
-                        <span>Painel Admin</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-                <SidebarMenuItem>
-                  <SidebarMenuButton onClick={handleLogout}>
-                    <LogOut size={20} />
-                    <span>Sair</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-      </SidebarContent>
-      
-      <SidebarFooter className="px-3 py-2">
-        <div className="text-xs text-muted-foreground">
-          © 2024 PhotoBank
+          <div className="flex-1 flex flex-col justify-between">
+            <div className="flex flex-col space-y-1 px-2">
+              {menuItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 py-2 px-4 rounded-md hover:bg-secondary transition-colors ${location.pathname === item.path ? "bg-secondary text-foreground" : "text-muted-foreground"
+                    }`}
+                  onClick={onClose}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </Link>
+              ))}
+              {user?.app_metadata?.role === 'admin' && adminMenuItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 py-2 px-4 rounded-md hover:bg-secondary transition-colors ${location.pathname === item.path ? "bg-secondary text-foreground" : "text-muted-foreground"
+                    }`}
+                  onClick={onClose}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                </Link>
+              ))}
+            </div>
+
+            {user && (
+              <div className="px-6 py-4">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleSignOut}
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Sair
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
-      </SidebarFooter>
-    </SidebarComponent>
+      </SheetContent>
+    </Sheet>
   );
 };
 
 export default Sidebar;
+
+import { MenuIcon } from "lucide-react";
