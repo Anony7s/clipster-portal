@@ -35,6 +35,7 @@ const Sidebar = () => {
   const [user, setUser] = useState<any>(null);
   const [username, setUsername] = useState<string>('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -45,13 +46,15 @@ const Sidebar = () => {
       if (user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('username, avatar_url')
+          .select('username, avatar_url, role')
           .eq('id', user.id)
           .single();
           
         if (profile) {
           setUsername(profile.username || 'Usuário');
           setAvatarUrl(profile.avatar_url);
+          setIsAdmin(profile.role === 'admin');
+          console.log("Perfil do usuário:", profile);
         }
       }
     };
@@ -174,7 +177,7 @@ const Sidebar = () => {
                   <span className="text-sm font-medium">{item.label}</span>
                 </Link>
               ))}
-              {user?.app_metadata?.role === 'admin' && adminMenuItems.map((item) => (
+              {isAdmin && adminMenuItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
