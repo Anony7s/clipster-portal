@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import Layout from "@/components/Layout";
@@ -19,6 +20,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const UserProfile = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,21 +41,27 @@ const UserProfile = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true);
-        setError(null);
-        
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
-        if (userError) throw userError;
-        setCurrentUser(user);
-        
         if (!id) {
           setError("ID de usuário não fornecido");
+          setLoading(false);
           return;
         }
         
-        setIsCurrentUser(user?.id === id);
+        setLoading(true);
+        setError(null);
         
+        // Buscar o usuário atual
+        const { data: { user: currentUserData }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError) {
+          console.error("Erro ao buscar usuário atual:", userError);
+          // Continuar mesmo sem usuário autenticado para permitir visualização de perfis públicos
+        } else {
+          setCurrentUser(currentUserData);
+          setIsCurrentUser(currentUserData?.id === id);
+        }
+        
+        // Buscar perfil do usuário pelo ID
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
@@ -61,43 +69,52 @@ const UserProfile = () => {
           .single();
           
         if (profileError) {
+          console.error("Erro ao buscar perfil:", profileError);
           if (profileError.code === 'PGRST116') {
             setError("Perfil não encontrado");
           } else {
-            throw profileError;
+            setError("Erro ao carregar o perfil. Tente novamente mais tarde.");
           }
+          setLoading(false);
+          return;
+        }
+        
+        if (!profileData) {
+          setError("Perfil não encontrado");
+          setLoading(false);
           return;
         }
         
         setProfile(profileData);
         
-        const { data: imagesData, error: imagesError } = await supabase
+        // Buscar contagem de imagens do usuário
+        const { count: imagesCount, error: imagesError } = await supabase
           .from('images')
-          .select('id', { count: 'exact' })
+          .select('id', { count: 'exact', head: true })
           .eq('user_id', id);
           
-        if (imagesError) throw imagesError;
+        if (imagesError) {
+          console.error("Erro ao buscar contagem de imagens:", imagesError);
+        }
         
+        // Buscar total de curtidas recebidas pelo usuário
         const { data: likesData, error: likesError } = await supabase
           .rpc('get_user_total_likes', { user_id: id });
           
-        if (likesError) throw likesError;
+        if (likesError) {
+          console.error("Erro ao buscar total de curtidas:", likesError);
+        }
         
+        // Atualizar estatísticas
         setStats({
-          totalImages: imagesData?.length || 0,
+          totalImages: imagesCount || 0,
           totalLikes: likesData || 0,
-          followers: 0,
-          following: 0
+          followers: 0, // Implementação futura
+          following: 0  // Implementação futura
         });
       } catch (error: any) {
-        console.error('Error fetching profile:', error);
+        console.error('Erro ao carregar o perfil:', error);
         setError("Erro ao carregar o perfil. Tente novamente mais tarde.");
-        
-        toast({
-          title: "Erro",
-          description: "Não foi possível carregar as informações do perfil",
-          variant: "destructive"
-        });
       } finally {
         setLoading(false);
       }
@@ -107,6 +124,14 @@ const UserProfile = () => {
   }, [id, toast]);
   
   const handleFollow = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Faça login",
+        description: "Você precisa estar logado para seguir usuários.",
+      });
+      return;
+    }
+    
     setIsFollowing(!isFollowing);
     
     toast({
@@ -142,10 +167,12 @@ const UserProfile = () => {
       <Layout>
         <div className="container px-4 py-8">
           <div className="flex flex-col items-center justify-center py-12">
-            <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Erro ao carregar perfil</h2>
-            <p className="text-muted-foreground mb-6">{error}</p>
-            <Button asChild>
+            <Alert variant="destructive" className="max-w-md mb-6">
+              <AlertTriangle className="h-6 w-6" />
+              <AlertTitle className="ml-2">Erro ao carregar perfil</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+            <Button asChild className="mt-4">
               <Link to="/">Voltar ao Início</Link>
             </Button>
           </div>
@@ -153,21 +180,6 @@ const UserProfile = () => {
       </Layout>
     );
   }
-  
-  if (!profile) return (
-    <Layout>
-      <div className="container px-4 py-8">
-        <div className="flex flex-col items-center justify-center py-12">
-          <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
-          <h2 className="text-2xl font-bold mb-2">Perfil não encontrado</h2>
-          <p className="text-muted-foreground mb-6">O perfil que você está procurando não existe ou foi removido.</p>
-          <Button asChild>
-            <Link to="/">Voltar ao Início</Link>
-          </Button>
-        </div>
-      </div>
-    </Layout>
-  );
   
   return (
     <Layout>
@@ -272,7 +284,7 @@ const UserProfile = () => {
           
           <TabsContent value="saved">
             {isCurrentUser ? (
-              <ImageGrid userId={id} layout="grid" type="saved" />
+              <ImageGrid userId={id} layout="grid" filterType="saved" />
             ) : (
               <div className="text-center py-12">
                 <h3 className="text-2xl font-semibold mb-2">Conteúdo privado</h3>
@@ -284,7 +296,7 @@ const UserProfile = () => {
           </TabsContent>
           
           <TabsContent value="liked">
-            <ImageGrid userId={id} layout="grid" type="liked" />
+            <ImageGrid userId={id} layout="grid" filterType="liked" />
           </TabsContent>
         </Tabs>
       </div>

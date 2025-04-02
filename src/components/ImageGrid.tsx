@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Heart, Bookmark, Share2, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { typedSupabase as supabase } from "@/types/supabase";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface ImageData {
   id: string;
@@ -26,10 +26,10 @@ interface ImageGridProps {
   layout?: "grid" | "masonry";
   limit?: number;
   userId?: string;
-  type?: "saved" | "liked";
+  filterType?: "saved" | "liked";
 }
 
-const ImageGrid = ({ category, layout = "grid", limit = 20, userId, type }: ImageGridProps) => {
+const ImageGrid = ({ category, layout = "grid", limit = 20, userId, filterType }: ImageGridProps) => {
   const [images, setImages] = useState<ImageData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -45,35 +45,98 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId, type }: Imag
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
         
-        let query = supabase
-          .from('images')
-          .select(`
-            id, 
-            title, 
-            image_url, 
-            type,
-            tags,
-            user_id, 
-            created_at, 
-            likes
-          `)
-          .order('created_at', { ascending: false })
-          .limit(limit);
+        let imagesData: any[] = [];
+        
+        if (filterType === 'saved' && user) {
+          const { data: savedData, error: savedError } = await supabase
+            .from('saved_images')
+            .select('image_id, image_url, title, created_at')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+            
+          if (savedError) throw savedError;
           
-        if (category) {
-          query = query.contains('tags', [category]);
+          if (savedData && savedData.length > 0) {
+            imagesData = await Promise.all(savedData.map(async (item) => {
+              const { data: imageData } = await supabase
+                .from('images')
+                .select('*')
+                .eq('id', item.image_id)
+                .single();
+                
+              return imageData || { 
+                id: item.image_id,
+                image_url: item.image_url,
+                title: item.title,
+                created_at: item.created_at,
+                likes: 0,
+                type: 'image',
+                tags: []
+              };
+            }));
+          }
+        } else if (filterType === 'liked' && userId) {
+          const { data: likedData, error: likedError } = await supabase
+            .from('image_likes')
+            .select('image_id')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+            
+          if (likedError) throw likedError;
+          
+          if (likedData && likedData.length > 0) {
+            const imageIds = likedData.map(item => item.image_id);
+            
+            const { data: imagesResult, error: imagesError } = await supabase
+              .from('images')
+              .select('*')
+              .in('id', imageIds);
+              
+            if (imagesError) throw imagesError;
+            
+            if (imagesResult) {
+              imagesData = imagesResult;
+            }
+          }
+        } else {
+          let query = supabase
+            .from('images')
+            .select(`
+              id, 
+              title, 
+              image_url, 
+              type,
+              tags,
+              user_id, 
+              created_at, 
+              likes
+            `)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+            
+          if (category) {
+            query = query.contains('tags', [category]);
+          }
+          
+          if (userId && !filterType) {
+            query = query.eq('user_id', userId);
+          }
+          
+          const { data: fetchedImages, error } = await query;
+          
+          if (error) throw error;
+          
+          if (fetchedImages) {
+            imagesData = fetchedImages;
+          }
         }
         
-        if (userId) {
-          query = query.eq('user_id', userId);
-        }
-        
-        const { data: imagesData, error } = await query;
-        
-        if (error) throw error;
-        
-        if (imagesData) {
+        if (imagesData.length > 0) {
           const imageWithUserDetails = await Promise.all(imagesData.map(async (image: any) => {
+            if (!image) return null;
+            
             const { data: userData } = await supabase
               .from('profiles')
               .select('username, avatar_url')
@@ -87,37 +150,44 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId, type }: Imag
             };
           }));
           
-          setImages(imageWithUserDetails);
-          
-          if (user) {
-            const { data: savedData } = await supabase
-              .from('saved_images')
-              .select('image_id')
-              .eq('user_id', user.id);
-              
-            if (savedData) {
-              setSavedImageIds(savedData.map((item: any) => item.image_id));
-            }
+          setImages(imageWithUserDetails.filter(Boolean));
+        } else {
+          setImages([]);
+        }
+        
+        if (user) {
+          const { data: savedData } = await supabase
+            .from('saved_images')
+            .select('image_id')
+            .eq('user_id', user.id);
             
-            const { data: likedData } = await supabase
-              .from('image_likes')
-              .select('image_id')
-              .eq('user_id', user.id);
-              
-            if (likedData) {
-              setLikedImageIds(likedData.map((item: any) => item.image_id));
-            }
+          if (savedData) {
+            setSavedImageIds(savedData.map((item: any) => item.image_id));
+          }
+          
+          const { data: likedData } = await supabase
+            .from('image_likes')
+            .select('image_id')
+            .eq('user_id', user.id);
+            
+          if (likedData) {
+            setLikedImageIds(likedData.map((item: any) => item.image_id));
           }
         }
       } catch (error) {
         console.error('Error fetching images:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar as imagens.",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
     };
     
     fetchImages();
-  }, [category, limit, userId]);
+  }, [category, limit, userId, filterType, toast]);
   
   const handleLike = async (imageId: string) => {
     if (!user) {
@@ -249,9 +319,15 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId, type }: Imag
       <div className="text-center py-12">
         <h3 className="text-2xl font-semibold mb-2">Nenhuma imagem encontrada</h3>
         <p className="text-muted-foreground mb-6">
-          {userId ? "Você ainda não fez upload de imagens." : "Nenhuma imagem disponível para esta categoria."}
+          {filterType === 'saved'
+            ? "Você ainda não salvou nenhuma imagem."
+            : filterType === 'liked'
+            ? "Você ainda não curtiu nenhuma imagem."
+            : userId
+            ? "Você ainda não fez upload de imagens."
+            : "Nenhuma imagem disponível para esta categoria."}
         </p>
-        {userId && (
+        {userId && !filterType && (
           <Button asChild>
             <Link to="/upload">Fazer Upload</Link>
           </Button>
@@ -327,6 +403,7 @@ const ImageCard = ({
             src={image.image_url}
             alt={image.title}
             className="w-full aspect-square object-cover object-center group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
           />
           {image.type === "gif" && (
             <Badge className="absolute top-2 right-2">GIF</Badge>
