@@ -9,6 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_logs: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string
+          details: Json | null
+          entity_id: string | null
+          id: string
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          id?: string
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
       bookmarks: {
         Row: {
           clip_id: string
@@ -236,6 +263,7 @@ export type Database = {
           bio: string | null
           created_at: string
           id: string
+          role: Database["public"]["Enums"]["user_role"]
           updated_at: string
           username: string | null
           website: string | null
@@ -245,6 +273,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           id: string
+          role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
           username?: string | null
           website?: string | null
@@ -254,6 +283,7 @@ export type Database = {
           bio?: string | null
           created_at?: string
           id?: string
+          role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
           username?: string | null
           website?: string | null
@@ -314,6 +344,12 @@ export type Database = {
         }
         Returns: undefined
       }
+      demote_from_admin: {
+        Args: {
+          target_user_id: string
+        }
+        Returns: undefined
+      }
       get_user_total_likes: {
         Args: {
           user_id: string
@@ -332,9 +368,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      is_admin: {
+        Args: {
+          user_id: string
+        }
+        Returns: boolean
+      }
+      promote_to_admin: {
+        Args: {
+          target_user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
-      [_ in never]: never
+      user_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never

@@ -23,7 +23,8 @@ import {
   LogOut,
   Sparkles,
   GalleryHorizontalEnd,
-  User
+  User,
+  Shield
 } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/components/ui/use-toast';
@@ -32,11 +33,23 @@ import { useState, useEffect } from "react";
 const Sidebar = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      
+      if (user) {
+        // Verificar se o usuário é administrador
+        const { data, error } = await supabase.rpc('is_admin', { user_id: user.id });
+        
+        if (error) {
+          console.error('Erro ao verificar status de administrador:', error);
+        } else {
+          setIsAdmin(data || false);
+        }
+      }
     };
     
     fetchUser();
@@ -167,6 +180,16 @@ const Sidebar = () => {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {isAdmin && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link to="/admin">
+                        <Shield size={20} />
+                        <span>Painel Admin</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 <SidebarMenuItem>
                   <SidebarMenuButton onClick={handleLogout}>
                     <LogOut size={20} />

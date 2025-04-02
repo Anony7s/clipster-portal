@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import ImageGrid from "@/components/ImageGrid";
-import { typedSupabase as supabase } from "@/types/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   User, 
   Calendar, 
@@ -16,12 +16,15 @@ import {
   Link as LinkIcon,
   Grid,
   Bookmark,
-  Heart
+  Heart,
+  AlertTriangle
 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 const UserProfile = () => {
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isCurrentUser, setIsCurrentUser] = useState(false);
@@ -32,15 +35,24 @@ const UserProfile = () => {
     followers: 0,
     following: 0
   });
+  const { toast } = useToast();
   
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
+        setError(null);
+        
         // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError) throw userError;
         setCurrentUser(user);
         
-        if (!id) return;
+        if (!id) {
+          setError("ID de usuário não fornecido");
+          return;
+        }
         
         setIsCurrentUser(user?.id === id);
         
@@ -51,45 +63,62 @@ const UserProfile = () => {
           .eq('id', id)
           .single();
           
-        if (profileError) throw profileError;
+        if (profileError) {
+          if (profileError.code === 'PGRST116') {
+            setError("Perfil não encontrado");
+          } else {
+            throw profileError;
+          }
+          return;
+        }
         
         setProfile(profileData);
         
         // Get stats
-        const { data: imagesCount } = await supabase
+        const { data: imagesData, error: imagesError } = await supabase
           .from('images')
           .select('id', { count: 'exact' })
           .eq('user_id', id);
           
+        if (imagesError) throw imagesError;
+        
         // Get total likes for user
-        const { data: likesData } = await supabase
+        const { data: likesData, error: likesError } = await supabase
           .rpc('get_user_total_likes', { user_id: id });
           
+        if (likesError) throw likesError;
+        
         setStats({
-          totalImages: imagesCount?.length || 0,
-          totalLikes: likesData?.[0]?.total_likes || 0,
+          totalImages: imagesData?.length || 0,
+          totalLikes: likesData || 0,
           followers: 0, // To be implemented with a followers table
           following: 0  // To be implemented with a followers table
         });
-        
-        // Check if current user is following this profile
-        if (user && user.id !== id) {
-          // To be implemented with a followers table
-          setIsFollowing(false);
-        }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching profile:', error);
+        setError("Erro ao carregar o perfil. Tente novamente mais tarde.");
+        
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar as informações do perfil",
+          variant: "destructive"
+        });
       } finally {
         setLoading(false);
       }
     };
     
     fetchData();
-  }, [id]);
+  }, [id, toast]);
   
   const handleFollow = async () => {
     // To be implemented with a followers table
     setIsFollowing(!isFollowing);
+    
+    toast({
+      title: !isFollowing ? "Seguindo usuário" : "Deixou de seguir",
+      description: !isFollowing ? "Você começou a seguir este usuário" : "Você deixou de seguir este usuário"
+    });
   };
   
   if (loading) {
@@ -114,7 +143,37 @@ const UserProfile = () => {
     );
   }
   
-  if (!profile) return null;
+  if (error) {
+    return (
+      <Layout>
+        <div className="container px-4 py-8">
+          <div className="flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Erro ao carregar perfil</h2>
+            <p className="text-muted-foreground mb-6">{error}</p>
+            <Button asChild>
+              <Link to="/">Voltar ao Início</Link>
+            </Button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+  
+  if (!profile) return (
+    <Layout>
+      <div className="container px-4 py-8">
+        <div className="flex flex-col items-center justify-center py-12">
+          <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
+          <h2 className="text-2xl font-bold mb-2">Perfil não encontrado</h2>
+          <p className="text-muted-foreground mb-6">O perfil que você está procurando não existe ou foi removido.</p>
+          <Button asChild>
+            <Link to="/">Voltar ao Início</Link>
+          </Button>
+        </div>
+      </div>
+    </Layout>
+  );
   
   return (
     <Layout>
@@ -129,7 +188,13 @@ const UserProfile = () => {
           
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
-              <h1 className="text-3xl font-bold">{profile.username}</h1>
+              <h1 className="text-3xl font-bold">{profile.username || "Usuário"}</h1>
+              
+              {profile.role === 'admin' && (
+                <Badge variant="outline" className="border-primary text-primary">
+                  Administrador
+                </Badge>
+              )}
               
               {!isCurrentUser && currentUser && (
                 <Button 
@@ -213,7 +278,7 @@ const UserProfile = () => {
           
           <TabsContent value="saved">
             {isCurrentUser ? (
-              <ImageGrid userId={id} layout="grid" />
+              <ImageGrid userId={id} layout="grid" type="saved" />
             ) : (
               <div className="text-center py-12">
                 <h3 className="text-2xl font-semibold mb-2">Conteúdo privado</h3>
@@ -225,7 +290,7 @@ const UserProfile = () => {
           </TabsContent>
           
           <TabsContent value="liked">
-            <ImageGrid userId={id} layout="grid" />
+            <ImageGrid userId={id} layout="grid" type="liked" />
           </TabsContent>
         </Tabs>
       </div>

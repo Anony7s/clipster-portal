@@ -25,7 +25,7 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
             try {
               await supabase.rpc('create_notification', {
                 p_user_id: newSession.user.id,
-                p_message: 'Bem-vindo à plataforma de clipes!',
+                p_message: 'Bem-vindo à plataforma de fotos!',
                 p_type: 'success'
               });
             } catch (error) {

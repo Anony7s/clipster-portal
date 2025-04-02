@@ -16,6 +16,7 @@ import Recentes from "./pages/Recentes";
 import Auth from "./pages/Auth";
 import AuthGuard from "./components/AuthGuard";
 import UserProfile from "./pages/UserProfile";
+import AdminPanel from "./pages/AdminPanel";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/recentes" element={<Recentes />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/profile/:id" element={<UserProfile />} />
+            <Route path="/admin" element={<AdminPanel />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthGuard>
