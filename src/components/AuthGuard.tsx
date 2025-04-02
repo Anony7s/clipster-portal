@@ -19,19 +19,34 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         if (event === 'SIGNED_IN' && newSession) {
-          // Create a welcome notification when user signs in
-          // Use setTimeout to avoid Supabase deadlock
-          setTimeout(async () => {
-            try {
-              await supabase.rpc('create_notification', {
-                p_user_id: newSession.user.id,
-                p_message: 'Bem-vindo à plataforma de fotos!',
-                p_type: 'success'
-              });
-            } catch (error) {
-              console.error('Error creating notification:', error);
-            }
-          }, 0);
+          // Apenas cria a notificação quando o evento realmente for SIGNED_IN
+          // e não em cada carregamento de página
+          if (!session) { // Verifica se não havia sessão anterior
+            // Use setTimeout to avoid Supabase deadlock
+            setTimeout(async () => {
+              try {
+                // Verifica se já existe uma notificação de boas-vindas recente (últimas 24h)
+                const { data: existingNotifications } = await supabase
+                  .from('notifications')
+                  .select('*')
+                  .eq('user_id', newSession.user.id)
+                  .eq('message', 'Bem-vindo à plataforma de fotos!')
+                  .gt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+                  .limit(1);
+                
+                // Só cria uma nova notificação se não houver notificações de boas-vindas recentes
+                if (!existingNotifications || existingNotifications.length === 0) {
+                  await supabase.rpc('create_notification', {
+                    p_user_id: newSession.user.id,
+                    p_message: 'Bem-vindo à plataforma de fotos!',
+                    p_type: 'success'
+                  });
+                }
+              } catch (error) {
+                console.error('Error creating notification:', error);
+              }
+            }, 0);
+          }
         }
         
         setSession(newSession);
