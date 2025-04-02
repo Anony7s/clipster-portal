@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Home,
@@ -13,6 +13,7 @@ import {
   User,
   LogOut,
   LayoutDashboard,
+  MenuIcon,
 } from "lucide-react";
 import {
   Sheet,
@@ -34,7 +35,7 @@ const Sidebar = () => {
   const [user, setUser] = useState<any>(null);
   const { toast } = useToast();
 
-  useState(() => {
+  useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
@@ -106,6 +107,11 @@ const Sidebar = () => {
     },
   ];
 
+  // Handle closing the sidebar when a link is clicked
+  const handleLinkClick = () => {
+    setOpen(false);
+  };
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
@@ -124,7 +130,7 @@ const Sidebar = () => {
 
           <div className="px-4 pb-4">
             {user ? (
-              <Link to={`/profile/${user.id}`} className="flex items-center gap-3 py-2 rounded-md hover:bg-secondary transition-colors">
+              <Link to={`/profile/${user.id}`} className="flex items-center gap-3 py-2 rounded-md hover:bg-secondary transition-colors" onClick={handleLinkClick}>
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user?.user_metadata?.avatar_url} />
                   <AvatarFallback>{user?.email?.[0]?.toUpperCase() || "U"}</AvatarFallback>
@@ -132,7 +138,7 @@ const Sidebar = () => {
                 <span className="text-sm font-medium">{user?.user_metadata?.username || user?.email}</span>
               </Link>
             ) : (
-              <Link to="/auth" className="flex items-center gap-3 py-2 rounded-md hover:bg-secondary transition-colors">
+              <Link to="/auth" className="flex items-center gap-3 py-2 rounded-md hover:bg-secondary transition-colors" onClick={handleLinkClick}>
                 <User className="h-4 w-4" />
                 <span className="text-sm font-medium">Entrar / Cadastrar</span>
               </Link>
@@ -147,7 +153,7 @@ const Sidebar = () => {
                   to={item.path}
                   className={`flex items-center gap-3 py-2 px-4 rounded-md hover:bg-secondary transition-colors ${location.pathname === item.path ? "bg-secondary text-foreground" : "text-muted-foreground"
                     }`}
-                  onClick={onClose}
+                  onClick={handleLinkClick}
                 >
                   <item.icon className="h-4 w-4" />
                   <span className="text-sm font-medium">{item.label}</span>
@@ -159,7 +165,7 @@ const Sidebar = () => {
                   to={item.path}
                   className={`flex items-center gap-3 py-2 px-4 rounded-md hover:bg-secondary transition-colors ${location.pathname === item.path ? "bg-secondary text-foreground" : "text-muted-foreground"
                     }`}
-                  onClick={onClose}
+                  onClick={handleLinkClick}
                 >
                   <item.icon className="h-4 w-4" />
                   <span className="text-sm font-medium">{item.label}</span>
@@ -187,5 +193,3 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
-
-import { MenuIcon } from "lucide-react";
