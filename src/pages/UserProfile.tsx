@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import Layout from "@/components/Layout";
@@ -43,7 +42,6 @@ const UserProfile = () => {
         setLoading(true);
         setError(null);
         
-        // Get current user
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         
         if (userError) throw userError;
@@ -56,7 +54,6 @@ const UserProfile = () => {
         
         setIsCurrentUser(user?.id === id);
         
-        // Get profile details
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
@@ -74,7 +71,6 @@ const UserProfile = () => {
         
         setProfile(profileData);
         
-        // Get stats
         const { data: imagesData, error: imagesError } = await supabase
           .from('images')
           .select('id', { count: 'exact' })
@@ -82,7 +78,6 @@ const UserProfile = () => {
           
         if (imagesError) throw imagesError;
         
-        // Get total likes for user
         const { data: likesData, error: likesError } = await supabase
           .rpc('get_user_total_likes', { user_id: id });
           
@@ -91,8 +86,8 @@ const UserProfile = () => {
         setStats({
           totalImages: imagesData?.length || 0,
           totalLikes: likesData || 0,
-          followers: 0, // To be implemented with a followers table
-          following: 0  // To be implemented with a followers table
+          followers: 0,
+          following: 0
         });
       } catch (error: any) {
         console.error('Error fetching profile:', error);
@@ -112,7 +107,6 @@ const UserProfile = () => {
   }, [id, toast]);
   
   const handleFollow = async () => {
-    // To be implemented with a followers table
     setIsFollowing(!isFollowing);
     
     toast({

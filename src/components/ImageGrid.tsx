@@ -26,9 +26,10 @@ interface ImageGridProps {
   layout?: "grid" | "masonry";
   limit?: number;
   userId?: string;
+  type?: "saved" | "liked";
 }
 
-const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridProps) => {
+const ImageGrid = ({ category, layout = "grid", limit = 20, userId, type }: ImageGridProps) => {
   const [images, setImages] = useState<ImageData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -41,11 +42,9 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
       setLoading(true);
       
       try {
-        // Get current user
         const { data: { user } } = await supabase.auth.getUser();
         setUser(user);
         
-        // Build query
         let query = supabase
           .from('images')
           .select(`
@@ -61,7 +60,6 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
           .order('created_at', { ascending: false })
           .limit(limit);
           
-        // Add filters if needed
         if (category) {
           query = query.contains('tags', [category]);
         }
@@ -75,7 +73,6 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
         if (error) throw error;
         
         if (imagesData) {
-          // Fetch user details for each image
           const imageWithUserDetails = await Promise.all(imagesData.map(async (image: any) => {
             const { data: userData } = await supabase
               .from('profiles')
@@ -92,7 +89,6 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
           
           setImages(imageWithUserDetails);
           
-          // If user is logged in, fetch saved and liked images
           if (user) {
             const { data: savedData } = await supabase
               .from('saved_images')
@@ -136,7 +132,6 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
     
     try {
       if (isLiked) {
-        // Unlike image
         await supabase
           .from('image_likes')
           .delete()
@@ -145,15 +140,12 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
           
         setLikedImageIds(likedImageIds.filter(id => id !== imageId));
         
-        // Update likes count in images table
         await supabase.rpc('decrement_image_likes', { image_id: imageId });
         
-        // Update local state
         setImages(images.map(img => 
           img.id === imageId ? { ...img, likes: img.likes - 1 } : img
         ));
       } else {
-        // Like image
         await supabase
           .from('image_likes')
           .insert({
@@ -163,10 +155,8 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
           
         setLikedImageIds([...likedImageIds, imageId]);
         
-        // Update likes count in images table
         await supabase.rpc('increment_image_likes', { image_id: imageId });
         
-        // Update local state
         setImages(images.map(img => 
           img.id === imageId ? { ...img, likes: img.likes + 1 } : img
         ));
@@ -194,7 +184,6 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
     
     try {
       if (isSaved) {
-        // Unsave image
         await supabase
           .from('saved_images')
           .delete()
@@ -208,7 +197,6 @@ const ImageGrid = ({ category, layout = "grid", limit = 20, userId }: ImageGridP
           description: "A imagem foi removida da sua coleção.",
         });
       } else {
-        // Save image
         await supabase
           .from('saved_images')
           .insert({

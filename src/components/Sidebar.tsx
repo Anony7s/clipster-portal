@@ -1,10 +1,11 @@
+
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Home,
   Image,
   Upload,
-  Collection,
+  FolderOpen,
   Heart,
   Settings,
   Bookmark,
@@ -29,7 +30,7 @@ import { typedSupabase as supabase } from "@/types/supabase";
 
 const Sidebar = () => {
   const location = useLocation();
-  const { isOpen, onClose } = useSidebar();
+  const { open, setOpen } = useSidebar();
   const [user, setUser] = useState<any>(null);
   const { toast } = useToast();
 
@@ -68,7 +69,7 @@ const Sidebar = () => {
     {
       path: "/collections",
       label: "Coleções",
-      icon: Collection,
+      icon: FolderOpen,
     },
     {
       path: "/upload",
@@ -106,7 +107,7 @@ const Sidebar = () => {
   ];
 
   return (
-    <Sheet open={isOpen} onOpenChange={onClose}>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon" className="md:hidden">
           <MenuIcon className="h-5 w-5" />
