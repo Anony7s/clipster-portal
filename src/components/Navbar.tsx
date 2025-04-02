@@ -41,7 +41,7 @@ const Navbar = () => {
           
         if (profile) {
           setAvatarUrl(profile.avatar_url);
-          setUsername(profile.username || 'Perfil');
+          setUsername(profile.username || 'Usuário');
         }
       }
     };
@@ -159,7 +159,7 @@ const Navbar = () => {
                 <DropdownMenuItem asChild>
                   <Link to={`/profile/${user.id}`} className="flex items-center">
                     <UserCircle className="mr-2 h-4 w-4" />
-                    Meu Perfil
+                    {username}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

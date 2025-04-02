@@ -33,12 +33,27 @@ const Sidebar = () => {
   const location = useLocation();
   const { open, setOpen } = useSidebar();
   const [user, setUser] = useState<any>(null);
+  const [username, setUsername] = useState<string>('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('username, avatar_url')
+          .eq('id', user.id)
+          .single();
+          
+        if (profile) {
+          setUsername(profile.username || 'Usuário');
+          setAvatarUrl(profile.avatar_url);
+        }
+      }
     };
 
     fetchUser();
@@ -132,10 +147,10 @@ const Sidebar = () => {
             {user ? (
               <Link to={`/profile/${user.id}`} className="flex items-center gap-3 py-2 rounded-md hover:bg-secondary transition-colors" onClick={handleLinkClick}>
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={user?.user_metadata?.avatar_url} />
-                  <AvatarFallback>{user?.email?.[0]?.toUpperCase() || "U"}</AvatarFallback>
+                  <AvatarImage src={avatarUrl || ""} />
+                  <AvatarFallback>{username?.[0]?.toUpperCase() || "U"}</AvatarFallback>
                 </Avatar>
-                <span className="text-sm font-medium">{user?.user_metadata?.username || user?.email}</span>
+                <span className="text-sm font-medium">{username}</span>
               </Link>
             ) : (
               <Link to="/auth" className="flex items-center gap-3 py-2 rounded-md hover:bg-secondary transition-colors" onClick={handleLinkClick}>
